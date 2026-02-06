@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Customers{% endblock %}
+
+{% block content %}
+  <div class="flex items-end justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-bold">Customers</h1>
+      <p class="text-slate-600">View customers and open details using TEP Code.</p>
+    </div>
+
+    <form method="get" class="flex gap-2">
+      <input
+        type="text"
+        name="q"
+        value="{{ q|default:'' }}"
+        placeholder="Search customer / tep_code / part_code..."
+        class="w-72 px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-400"
+      />
+      <button class="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800" type="submit">
+        Search
+      </button>
+    </form>
+  </div>
+
+  <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+      <span class="font-semibold">Customer Records</span>
+      <span class="text-sm text-slate-500">Total: {{ customers|length }}</span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-slate-700">
+          <tr>
+            <th class="px-4 py-3 text-left">Customer</th>
+            <th class="px-4 py-3 text-left">Part Code</th>
+            <th class="px-4 py-3 text-left">TEP Code</th>
+            <th class="px-4 py-3 text-left">Materials</th>
+            <th class="px-4 py-3 text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+         {% for c in customers %}
+           {% for entry in c.tep_entries %}
+            <tr class="border-t border-slate-200 hover:bg-slate-50">
+              {% if forloop.first %}
+                <td class="px-4 py-3 font-medium" rowspan="{{ c.tep_entries|length }}">{{ c.customer_name }}</td>
+              {% endif %}
+              <td class="px-4 py-3">{{ entry.part_code }}</td>
+              <td class="px-4 py-3">{{ entry.tep_code }}</td>
+              <td class="px-4 py-3">{{ entry.materials_count }}</td>
+              <td class="px-4 py-3 text-right">
+                <a
+                  href="{% url 'app:customer_detail' entry.tep_code %}"
+                  class="px-3 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800"
+                >
+                  View
+                </a>
+              </td>
+            </tr>
+           {% endfor %}
+         {% empty %}
+            <tr>
+              <td colspan="5" class="px-4 py-8 text-center text-slate-500">
+                No customers found.
+              </td>
+            </tr>
+          {% endfor %} 
+          
+          <!-- Grouped -->
+
+          <!--
+          {% for customer_name, customers in grouped_customers.items %}
+            <tr class="border-t border-slate-200 hover:bg-slate-50">
+              <td class="px-4 py-3 font-medium" rowspan="{{ customers|length }}">{{ customer_name }}</td>
+              {% for c in customers %}
+                {% if not forloop.first %}
+                  <tr class="border-t border-slate-200 hover:bg-slate-50">
+                {% endif %}
+                <td class="px-4 py-3">{{ c.part_code }}</td>
+                <td class="px-4 py-3">
+                  <span class="px-2 py-1 rounded-lg bg-slate-100 border">
+                    {{ c.tep_code }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">{{ c.materials.count }}</td>
+                <td class="px-4 py-3 text-right">
+                  <a
+                    href="{% url 'app:customer_detail' c.tep_code %}"
+                    class="px-3 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800"
+                  >
+                    View
+                  </a>
+                </td>
+                {% if not forloop.first %}
+                  </tr>
+                {% endif %}
+              {% endfor %}
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="px-4 py-8 text-center text-slate-500">
+                No customers found.
+              </td>
+            </tr>
+          {% endfor %} -->
+
+
+
+          <!--ff-->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="mt-6 flex gap-3">
+    <a href="/admin/app/customer/" target="_blank"
+       class="px-4 py-2 rounded-xl border bg-white hover:bg-slate-50">
+      Open Customers (Admin)
+    </a>
+
+    <a href="/admin/app/material/" target="_blank"
+       class="px-4 py-2 rounded-xl border bg-white hover:bg-slate-50">
+      Open Materials (Admin)
+    </a>
+  </div>
+{% endblock %}
