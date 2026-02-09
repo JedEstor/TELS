@@ -2,111 +2,86 @@ from ninja import Schema
 from typing import List, Optional
 
 
-class CustomerIn(Schema):
-    customer_name: str
+class CustomerPart(Schema):
+    Partcode: str
+    Partname: str
+
+
+"""class MaterialIn(Schema): #my original schema for the MaterialIn
+    mat_partcode: str
+    mat_partname: str
+    mat_maker: str
+    unit: str
+    dim_qty: float
+    loss_percent: Optional[float] = 10.0
+    total: float"""
+
+#new syntax for the MaterialIn schema
+class MaterialIn(Schema):
+    mat_partcode:str
+    dim_qty: float
+    loss_percent: Optional[float] = 10.0
+
+class MaterialIn(Schema):
+    mat_partcode: str
+    dim_qty: float
+    loss_percent: Optional[float] = 10.0
+
+
+
+class MaterialOut(Schema):
+    mat_partcode: str
+    mat_partname: str
+    mat_maker: str
+    unit: str
+    dim_qty: float
+    loss_percent: float
+    total: float
+
+class TEPCodeIn(Schema):
+    tep_code: str
+
+
+class TEPCodeOut(Schema):
     part_code: str
     tep_code: str
-    part_name: str
+    materials: List[MaterialOut] = []
+
+class CustomerIn(Schema):
+    customer_name: str
+    parts: Optional[List[CustomerPart]] = None
 
 
 class CustomerOut(Schema):
     id: int
     customer_name: str
-    part_code: str
-    tep_code: str
-    part_name: str
+    parts: List[CustomerPart]
 
 
-class MaterialIn(Schema):
-    maker: str
-    material_part_code: str
-    material_name: str
-    unit: str         
-    dim_qty: float
-    loss_percent: Optional[float] = 10.0 
-    total: float
-
-
-class MaterialOut(Schema):
+class CustomerFullOut(Schema):
     id: int
-    #customer_id: int
-    maker: str
-    material_part_code: str
-    material_name: str
+    customer_name: str
+    parts: List[CustomerPart] = []
+    tep_codes: List[TEPCodeOut] = []
+
+
+class TEPNodeOut(Schema):
+    TEP_Code: str
+    Materials: List[MaterialOut] = []
+
+
+class PartNodeOut(Schema):
+    Partcode: str
+    Partname: str
+    TEP_Codes: List[TEPNodeOut] = []
+
+
+class CustomerTreeOut(Schema):
+    customer_name: str
+    Customer_Part: List[PartNodeOut] = []
+
+class MaterialListIn(Schema):
+    mat_partcode: str
+    mat_partname: str
+    mat_maker: str
     unit: str
-    dim_qty: float
-    loss_percent: float
-    total: float
-
-class MaterialOut2(Schema):
-    #id: int
-    #customer_id: int
-
-    maker: str
-    material_part_code: str
-    material_name: str
-    unit: str
-    dim_qty: float
-    loss_percent: float
-    total: float
-
-class CustTrial(Schema):
-    id: int
-    customer_name: str
-    part_code: str
-    tep_code: str
-    part_name: str
-
-class CustomerWithMaterialsOut(Schema):
-    id: int
-    customer_name: str
-    part_code: str
-    tep_code: str
-    part_name: str
-    materials: List[MaterialOut]
-
-
-"""
-
-class CustomerIn(Schema):
-    customer_name: str
-    part_code: str
-
-
-class CustomerOut(Schema):
-    id: int
-    customer_name: str
-    part_code: str
-   
-
-
-class MaterialIn(Schema):
-    tep_code: str
-    maker: str
-    material_part_code: str
-    material_name: str
-    unit: str         
-    dim_qty: float
-    loss_percent: Optional[float] = 10.0 
-    total: float
-
-
-class MaterialOut(Schema):
-    id: int
-    customer_id: int
-    tep_code: str
-    maker: str
-    material_part_code: str
-    material_name: str
-    unit: str
-    dim_qty: float
-    loss_percent: float
-    total: float
-
-class CustomerWithMaterialsOut(Schema):
-    id: int
-    customer_name: str
-    part_code: str
-    tep_code: str
-    materials: List[MaterialOut]
-"""

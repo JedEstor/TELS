@@ -8,7 +8,7 @@ from django.contrib import admin
 urlpatterns = [
     #path('home/', views.home, name='home')
     path("", views.customer_list, name="customer_list"), 
-    path("customers/<str:tep_code>/", views.customer_detail, name="customer_detail"),
+    path("customers/tep/<int:tep_id>/", views.customer_detail, name="customer_detail"),
     path("api/", api.urls),
     path("admin/", admin.site.urls),
 ]

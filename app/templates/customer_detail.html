@@ -10,26 +10,30 @@
     <div class="flex flex-wrap justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold">{{ customer.customer_name }}</h1>
+
         <p class="text-slate-600 mt-1">
-          Part Code: <span class="font-medium text-slate-900">{% if selected_part %}{{ selected_part }}{% else %}{{ customer.part_code }}{% endif %}</span>
+          Part Code:
+          <span class="font-medium text-slate-900">
+            {{ selected_part }}
+          </span>
         </p>
+
         <p class="text-slate-600">
           TEP Code:
           <span class="px-2 py-1 rounded-lg bg-slate-100 border">
-            {% if selected_tep %}{{ selected_tep }}{% else %}{{ customer.tep_code }}{% endif %}
+            {{ selected_tep }}
           </span>
         </p>
       </div>
 
       <div class="flex gap-2">
-        <a href="{% if selected_tep %}/api/customers/{{ selected_tep }}/details{% else %}/api/customers/{{ customer.tep_code }}/details{% endif %}" target="_blank"
-           class="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">
-          View JSON
-        </a>
-        <a href="/api/docs" target="_blank"
-           class="px-4 py-2 rounded-xl border bg-white hover:bg-slate-50">
-          API Docs
-        </a>
+        {% if tep_id %}
+          <a href="/api/tep-codes/{{ tep_id }}/materials" target="_blank"
+             class="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">
+            View Materials JSON
+          </a>
+        {% endif %}
+
       </div>
     </div>
   </div>
@@ -48,24 +52,25 @@
             <th class="px-4 py-3 text-left">Material Code</th>
             <th class="px-4 py-3 text-left">Material Name</th>
             <th class="px-4 py-3 text-left">Unit</th>
-            <th class="px-4 py-3 text-left">Dim / Qty</th>
+            <th class="px-4 py-3 text-left">Dim/Qty</th>
             <th class="px-4 py-3 text-left">Loss %</th>
             <th class="px-4 py-3 text-left">Total</th>
           </tr>
         </thead>
+
         <tbody>
           {% for m in materials %}
             <tr class="border-t hover:bg-slate-50">
-              <td class="px-4 py-3">{{ m.maker }}</td>
-              <td class="px-4 py-3 font-medium">{{ m.material_part_code }}</td>
-              <td class="px-4 py-3">{{ m.material_name }}</td>
+              <td class="px-4 py-3">{{ m.mat_maker }}</td>
+              <td class="px-4 py-3 font-medium">{{ m.mat_partcode }}</td>
+              <td class="px-4 py-3">{{ m.mat_partname }}</td>
               <td class="px-4 py-3">
                 <span class="px-2 py-1 rounded bg-slate-100 border">
                   {{ m.unit }}
                 </span>
               </td>
               <td class="px-4 py-3">{{ m.dim_qty }}</td>
-              <td class="px-4 py-3">{{ m.loss_percent }}%</td>
+              <td class="px-4 py-3">{{ m.loss_percent }}</td>
               <td class="px-4 py-3">{{ m.total }}</td>
             </tr>
           {% empty %}

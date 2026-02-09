@@ -1,25 +1,114 @@
-#from django.contrib import admin
-
-# Register your models here.
-
 import json
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 
-from .models import Customer, Material
+from .models import Customer, TEPCode, Material, MaterialList
+
+
+class TEPCodeInline(admin.TabularInline):
+    model = TEPCode
+    extra = 0
+
+
+class MaterialInline(admin.TabularInline):
+    model = Material
+    extra = 0
 
 
 class CustomerAdminForm(forms.ModelForm):
-    materials_json = forms.CharField(
+    parts_json = forms.CharField(
         required=False,
-        label="Materials (JSON)",
-        widget=forms.Textarea(attrs={"rows": 18, "style": "font-family: monospace;"}),
+        label="Customer Parts (JSON)",
+        widget=forms.Textarea(attrs={"rows": 14, "style": "font-family: monospace;"}),
+        help_text='Example: [{"Partcode":"00000","Partname":"zeroes"}]',
     )
 
     class Meta:
         model = Customer
-        fields = ("customer_name", "part_code", "tep_code")  
+        fields = ("customer_name",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.instance and self.instance.pk:
+            self.fields["parts_json"].initial = json.dumps(
+                self.instance.parts or [],
+                indent=2,
+                ensure_ascii=False
+            )
+
+    def clean_parts_json(self):
+        raw = (self.cleaned_data.get("parts_json") or "").strip()
+
+        if raw == "":
+            return []
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise ValidationError(f"Invalid JSON: {e}")
+
+        if not isinstance(data, list):
+            raise ValidationError("Parts must be a JSON ARRAY (list).")
+
+        for i, item in enumerate(data):
+            if not isinstance(item, dict):
+                raise ValidationError(f"Item #{i+1} must be an object/dict.")
+            if "Partcode" not in item or "Partname" not in item:
+                raise ValidationError(f"Item #{i+1} must contain Partcode and Partname.")
+
+            if not str(item["Partcode"]).strip():
+                raise ValidationError(f"Item #{i+1}: Partcode cannot be empty.")
+            if not str(item["Partname"]).strip():
+                raise ValidationError(f"Item #{i+1}: Partname cannot be empty.")
+
+            item["Partcode"] = str(item["Partcode"]).strip()
+            item["Partname"] = str(item["Partname"]).strip()
+
+        return data
+
+
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    form = CustomerAdminForm
+
+    list_display = ("customer_name", "parts_count", "tep_count")
+    search_fields = ("customer_name",)
+
+    fields = ("customer_name", "parts_json")
+
+    inlines = [TEPCodeInline]
+
+    def parts_count(self, obj: Customer):
+        return len(obj.parts or [])
+    parts_count.short_description = "Parts"
+
+    def tep_count(self, obj: Customer):
+        return obj.tep_codes.count()
+    tep_count.short_description = "TEP Codes"
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+
+        obj.parts = form.cleaned_data.get("parts_json", [])
+        obj.save()
+
+
+class TEPCodeAdminForm(forms.ModelForm):
+    materials_json = forms.CharField(
+        required=False,
+        label="Materials (JSON)",
+        widget=forms.Textarea(attrs={"rows": 18, "style": "font-family: monospace;"}),
+        help_text=(
+            'Example: [{"mat_partcode":"123","mat_partname":"One2Tree","mat_maker":"Forest",'
+            '"unit":"m","dim_qty":120,"loss_percent":10,"total":132}]'
+        ),
+    )
+
+    class Meta:
+        model = TEPCode
+        fields = ("customer", "part_code", "tep_code")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -28,9 +117,9 @@ class CustomerAdminForm(forms.ModelForm):
             materials = self.instance.materials.all().order_by("id")
             payload = [
                 {
-                    "maker": m.maker,
-                    "material_part_code": m.material_part_code,
-                    "material_name": m.material_name,
+                    "mat_partcode": m.mat_partcode,
+                    "mat_partname": m.mat_partname,
+                    "mat_maker": m.mat_maker,
                     "unit": m.unit,
                     "dim_qty": m.dim_qty,
                     "loss_percent": m.loss_percent,
@@ -40,9 +129,23 @@ class CustomerAdminForm(forms.ModelForm):
             ]
             self.fields["materials_json"].initial = json.dumps(payload, indent=2, ensure_ascii=False)
 
-    def clean_materials_json(self):
-        raw = self.cleaned_data.get("materials_json", "").strip()
+    def clean(self):
+        cleaned = super().clean()
+        customer = cleaned.get("customer")
+        part_code = (cleaned.get("part_code") or "").strip()
 
+        if customer and part_code:
+            parts = customer.parts or []
+            codes = {str(p.get("Partcode", "")).strip() for p in parts if isinstance(p, dict)}
+            if part_code not in codes:
+                raise ValidationError(
+                    {"part_code": f"part_code '{part_code}' not found inside this customer's parts JSON."}
+                )
+
+        return cleaned
+
+    def clean_materials_json(self):
+        raw = (self.cleaned_data.get("materials_json") or "").strip()
         if raw == "":
             return []
 
@@ -55,12 +158,12 @@ class CustomerAdminForm(forms.ModelForm):
             raise ValidationError("JSON must be an ARRAY (list) of materials.")
 
         allowed_units = {"pc", "pcs", "m"}
+        required = ["mat_partcode", "mat_partname", "mat_maker", "unit", "dim_qty", "total"]
 
         for i, item in enumerate(data):
             if not isinstance(item, dict):
                 raise ValidationError(f"Item #{i+1} must be an object/dict.")
 
-            required = ["maker", "material_part_code", "material_name", "unit", "dim_qty", "total"]
             missing = [k for k in required if k not in item]
             if missing:
                 raise ValidationError(f"Item #{i+1} missing keys: {', '.join(missing)}")
@@ -69,7 +172,7 @@ class CustomerAdminForm(forms.ModelForm):
                 raise ValidationError(f"Item #{i+1}: unit must be one of {sorted(allowed_units)}")
 
             if "loss_percent" not in item or item["loss_percent"] in (None, ""):
-                item["loss_percent"] = 10
+                item["loss_percent"] = 10.0
 
             try:
                 item["dim_qty"] = float(item["dim_qty"])
@@ -81,18 +184,20 @@ class CustomerAdminForm(forms.ModelForm):
         return data
 
 
-@admin.register(Customer)
-class CustomerAdmin(admin.ModelAdmin):
-    form = CustomerAdminForm
+@admin.register(TEPCode)
+class TEPCodeAdmin(admin.ModelAdmin):
+    form = TEPCodeAdminForm
 
-    list_display = ("customer_name", "part_code", "tep_code", "materials_count")
-    search_fields = ("customer_name", "tep_code", "part_code")
+    list_display = ("tep_code", "customer", "part_code", "materials_count")
+    search_fields = ("tep_code", "part_code", "customer__customer_name")
+    list_filter = ("customer",)
 
-    inlines = []
+    fields = ("customer", "part_code", "tep_code", "materials_json")
+    inlines = [MaterialInline]
 
-    fields = ("customer_name", "part_code", "tep_code", "materials_json")
+    autocomplete_fields = ("customer",)
 
-    def materials_count(self, obj: Customer):
+    def materials_count(self, obj: TEPCode):
         return obj.materials.count()
     materials_count.short_description = "Materials"
 
@@ -101,17 +206,17 @@ class CustomerAdmin(admin.ModelAdmin):
 
         materials_data = form.cleaned_data.get("materials_json", [])
 
-        Material.objects.filter(customer=obj).delete()
+        Material.objects.filter(tep_code=obj).delete()
 
         for item in materials_data:
             Material.objects.create(
-                customer=obj,
-                maker=item["maker"],
-                material_part_code=item["material_part_code"],
-                material_name=item["material_name"],
+                tep_code=obj,
+                mat_partcode=item["mat_partcode"],
+                mat_partname=item["mat_partname"],
+                mat_maker=item["mat_maker"],
                 unit=item["unit"],
                 dim_qty=item["dim_qty"],
-                loss_percent=item.get("loss_percent", 10),
+                loss_percent=item.get("loss_percent", 10.0),
                 total=item["total"],
             )
 
@@ -119,14 +224,39 @@ class CustomerAdmin(admin.ModelAdmin):
 @admin.register(Material)
 class MaterialAdmin(admin.ModelAdmin):
     list_display = (
-        "material_name",
-        "material_part_code",
-        "maker",
+        "mat_partname",
+        "mat_partcode",
+        "mat_maker",
         "unit",
         "dim_qty",
         "loss_percent",
         "total",
-        "customer",
+        "tep_code",
+        "part_code",
+        "customer_name",
     )
-    #list_filter = ("unit", "maker")
-    search_fields = ("material_name", "material_part_code", "maker", "customer__tep_code")
+    search_fields = (
+        "mat_partname",
+        "mat_partcode",
+        "mat_maker",
+        "tep_code__tep_code",
+        "tep_code__part_code",
+        "tep_code__customer__customer_name",
+    )
+    list_filter = ("unit", "tep_code__customer")
+    autocomplete_fields = ("tep_code",)
+
+    def part_code(self, obj: Material):
+        return obj.tep_code.part_code
+    part_code.short_description = "Part Code"
+
+    def customer_name(self, obj: Material):
+        return obj.tep_code.customer.customer_name
+    customer_name.short_description = "Customer"
+
+
+@admin.register(MaterialList)
+class MaterialListAdmin(admin.ModelAdmin):
+    list_display = ("mat_partcode", "mat_partname", "mat_maker", "unit")
+    search_fields = ("mat_partcode", "mat_partname", "mat_maker")
+    list_filter = ("mat_maker",)
