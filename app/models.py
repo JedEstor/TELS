@@ -55,59 +55,12 @@ class TEPCode(models.Model):
     def __str__(self):
         return f"{self.customer.customer_name} | {self.part_code} | {self.tep_code}"
 
-"""
-class MaterialList(models.Model):
-   UNIT_CHOICES = [
-       ("pc", "PC"),
-       ("pcs", "PCS"),
-       ("m", "M"),
-   ]
-    
-   mat_partcode = models.CharField(max_length=80, unique=True)
-   mat_partname = models. CharField(max_length=160)
-   mat_maker = models.CharField(max_length=120)
-   unit = models.CharField(max_length=10, choices=UNIT_CHOICES)
-   default_dim_qty = models.FloatField(default=0)
 
-   def __str__(self):
-       return f"{self.mat_partname} ({self.mat_partcode})"
-"""
-
-"""class Material(models.Model):
-    UNIT_CHOICES = [
-        ("pc", "PC"),
-        ("pcs", "PCS"),
-        ("m", "M"),
-    ]
-
-    tep_code = models.ForeignKey(
-        TEPCode,
-        on_delete=models.CASCADE,
-        related_name="materials",
-    )
-
-    material_ref = models.ForeignKey(
-        MaterialList,
-        on_delete=models.PROTECT,
-        related_name="materials_used",
-    )
-
-    unit = models.CharField(max_length=10, choices=UNIT_CHOICES)
-    dim_qty = models.FloatField()
-    loss_percent = models.FloatField(default=10.0)
-    total = models.FloatField()
-
-    class Meta:
-        unique_together = ("tep_code", "material_ref")
-
-    def __str__(self):
-        return f"{self.material_ref.mat_partname} ({self.material_ref.mat_partcode})"
-"""
 class Material(models.Model):
     UNIT_CHOICES = [
-        ("pc", "PC"),
-        ("pcs", "PCS"),
-        ("m", "M"),
+        ("pc", "pc"),
+        ("pcs", "pcs"),
+        ("m", "m"),
     ]
 
     tep_code = models.ForeignKey(
@@ -131,9 +84,9 @@ class Material(models.Model):
 # New syntax for the material list model.
 class MaterialList(models.Model):
     UNIT_CHOICES = [
-        ("pc", "PC"),
-        ("pcs", "PCS"),
-        ("m", "M"),
+        ("pc", "pc"),
+        ("pcs", "pcs"),
+        ("m", "m"),
     ]
 
     mat_partcode = models.CharField(max_length=80, unique=True)

@@ -1,7 +1,7 @@
 from ninja import NinjaAPI, File
 from ninja.files import UploadedFile
 from django.http import JsonResponse
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.db.models import Prefetch
@@ -87,7 +87,65 @@ def _ensure_customer_part_entry(customer, part_code, part_name):
 
     return True, unique_name
 
+#9:27 am new ------------- start
+def _allocate_material_name(tep, base_name: str, exclude_partcode: str = "") -> str:
+    """
+    Desired behavior per TEP:
+      - First insert:        TAPE
+      - Second insert:       (rename existing TAPE -> TAPE 1), new -> TAPE 2
+      - Third insert:        new -> TAPE 3
+    """
+    base = (base_name or "").strip()
+    if not base:
+        base = "UNKNOWN"
 
+    exclude_partcode = (exclude_partcode or "").strip()
+
+    # Get all names like: BASE or BASE N
+    qs = Material.objects.filter(
+        tep_code=tep,
+        mat_partname__iregex=rf"^{re.escape(base)}( \d+)?$"
+    )
+    if exclude_partcode:
+        qs = qs.exclude(mat_partcode=exclude_partcode)
+
+    existing_names = list(qs.values_list("mat_partname", flat=True))
+
+    # No existing -> first is base (TAPE)
+    if not existing_names:
+        return base
+
+    # Find numbered suffixes
+    numbers = []
+    for n in existing_names:
+        m = re.match(
+            rf"^{re.escape(base)}(?: (\d+))?$",
+            (n or "").strip(),
+            flags=re.IGNORECASE
+        )
+        if m and m.group(1):
+            numbers.append(int(m.group(1)))
+
+    # If base exists but no numbered yet, we are inserting the 2nd duplicate.
+    # Rename the existing BASE -> BASE 1, then return BASE 2 for the new one.
+    if not numbers:
+        existing_base = Material.objects.filter(
+            tep_code=tep,
+            mat_partname__iexact=base,
+        )
+        if exclude_partcode:
+            existing_base = existing_base.exclude(mat_partcode=exclude_partcode)
+
+        first = existing_base.order_by("id").first()
+        if first:
+            first.mat_partname = f"{base} 1"
+            first.save(update_fields=["mat_partname"])
+
+        return f"{base} 2"
+
+    # Otherwise continue incrementing
+    return f"{base} {max(numbers) + 1}"
+# end ----------------- very new until here 9:27am
 
 @api.get("/customers", tags=["CUSTOMER"])
 def customers_tree(request, q: str = ""):
@@ -281,44 +339,8 @@ def list_materials_by_tep_code(request, tep_code: str):
     return tep.materials.all().order_by("mat_partname")
 
 
-"""
 @api.post("/tep-codes/by-code/{tep_code}/materials", response=MaterialOut, tags=["MATERIAL"])
-def create_material_by_tep_code(
-    request,
-    tep_code: str,
-    payload: MaterialIn,
-    part_code: str = "",
-    customer_name: str = "",
-):
-    qs = TEPCode.objects.select_related("customer").filter(tep_code=tep_code)
 
-    if part_code:
-        qs = qs.filter(part_code=part_code)
-    if customer_name:
-        qs = qs.filter(customer__customer_name=customer_name)
-
-    tep = qs.first()
-    if not tep:
-        return jresponse(
-            {"error": "TEP code not found. Provide part_code and/or customer_name."},
-            status=404,
-        )
-
-    material = Material.objects.create(
-        tep_code=tep,
-        mat_partcode=payload.mat_partcode,
-        mat_partname=payload.mat_partname,
-        mat_maker=payload.mat_maker,
-        unit=payload.unit,
-        dim_qty=payload.dim_qty,
-        loss_percent=payload.loss_percent,
-        total=payload.total,
-    )
-    return material
-"""
-from django.db import IntegrityError, transaction
-
-"""@api.post("/tep-codes/by-code/{tep_code}/materials", response=MaterialOut, tags=["MATERIAL"])
 def create_material_by_tep_code(
     request,
     tep_code: str,
@@ -327,138 +349,18 @@ def create_material_by_tep_code(
     customer_name: str = "",
 ):
     tep_code = (tep_code or "").strip()
-    if not tep_code:
-        return jresponse({"error": "tep_code is required"}, status=400)
-
-    qs = TEPCode.objects.select_related("customer").filter(tep_code=tep_code)
-
-    if part_code:
-        qs = qs.filter(part_code=part_code.strip())
-    if customer_name:
-        qs = qs.filter(customer__customer_name=customer_name.strip())
-
-    tep = qs.first()
-    if not tep:
-        return jresponse(
-            {"error": "TEP code not found. Provide part_code and/or customer_name."},
-            status=404,
-        )
-
-    mat_partcode = (payload.mat_partcode or "").strip()
-    if not mat_partcode:
-        return jresponse({"error": "mat_partcode is required"}, status=400)
-
-    try:
-        with transaction.atomic():
-            material, created = Material.objects.get_or_create(
-                tep_code=tep,
-                mat_partcode=mat_partcode,
-                defaults={
-                    "mat_partname": payload.mat_partname,
-                    "mat_maker": payload.mat_maker,
-                    "unit": payload.unit,
-                    "dim_qty": payload.dim_qty,
-                    "loss_percent": payload.loss_percent,
-                    "total": payload.total,
-                },
-            )
-    except IntegrityError:
-        material = Material.objects.filter(tep_code=tep, mat_partcode=mat_partcode).first()
-        created = False
-
-
-    return material"""
-
-#new syntax for the post
-"""@api.post("/tep-codes/by-code/{tep_code}/materials", response=MaterialOut, tags=["MATERIAL"])
-def create_material_by_tep_code(
-    request,
-    tep_code:str,
-    payload: MaterialIn,
-    part_code: str = "",
-    customer_name: str = "",
-):
-    tep_code = (tep_code or "").strip()
-    mat_partcode = (payload.mat_partcode or "").strip()
-
-    if not tep_code:
-        return jresponse({"error": "tep_code is required"}, status=400)
-    if not mat_partcode:
-        return jresponse({"error": "mat_partcode is required"}, status=400)
-    
-    qs = TEPCode.objects.select_related("customer").filter(tep_code=tep_code)
-
-    if part_code:
-        qs = qs.filter(part_code=part_code.strip())
-    if customer_name:
-        qs = qs.filter(customer__customer_name=customer_name.strip())
-
-    tep = qs.first()
-    if not tep:
-        return jresponse(
-            {"error": "TEP code not found. Provide part_code and/or customer_name."},
-            status=404,
-        )
-    
-    master = MaterialList.objects.filter(mat_partcode=mat_partcode).first()
-    if not master:
-        return jresponse(
-            {"error": f"mat_partcode '{mat_partcode}' not found in MaterialList (master list)."},
-            status=404,
-        )
-
-    loss = payload.loss_percent if payload.loss_percent is not None else 10.0
-    total = round(float(payload.dim_qty) * (1+(float(loss) / 100.0)), 4)
-
-    material, created = Material.objects.get_or_create(
-        tep_code=tep,
-        mat_partcode=master.mat_partcode,
-        defaults={
-            "mat_partname": master.mat_partname,
-            "mat_maker": master.mat_maker,
-            "unit": master.unit,
-            "dim_qty": payload.dim_qty,
-            "loss_percent": loss,
-            "total": total,
-        }
-    )
-
-    if not created:
-        return jresponse(
-            {
-                "error": "Material already exists for this TEP code.",
-                "tep_code": tep.tep_code,
-                "mat_partcode": material.mat_partcode,
-            },
-            status=409
-        )
-    return material"""
-####
-@api.post("/tep-codes/by-code/{tep_code}/materials", response=MaterialOut, tags=["MATERIAL"])
-def create_material_by_tep_code(
-    request,
-    tep_code: str,
-    payload: MaterialIn,
-    customer_name: str = "",
-    part_code: str = "",   # optional disambiguation
-):
-    tep_code = (tep_code or "").strip()
-    customer_name = (customer_name or "").strip()
     part_code = (part_code or "").strip()
-    mat_partcode = (payload.mat_partcode or "").strip()
+    customer_name = (customer_name or "").strip()
 
     if not tep_code:
         return jresponse({"error": "tep_code is required"}, status=400)
-    if not mat_partcode:
-        return jresponse({"error": "mat_partcode is required"}, status=400)
 
     qs = TEPCode.objects.select_related("customer").filter(tep_code=tep_code)
 
-    if customer_name:
-        qs = qs.filter(customer__customer_name=customer_name)
     if part_code:
         qs = qs.filter(part_code=part_code)
-
+    if customer_name:
+        qs = qs.filter(customer__customer_name=customer_name)
     tep = qs.first()
     if not tep:
         return jresponse(
@@ -466,29 +368,32 @@ def create_material_by_tep_code(
             status=404,
         )
 
-    # ✅ Ensure customer.parts has the part entry (and applies Tape/Tape 1 logic)
-    # Uses the TEPCode.part_code and the best-guess base name from existing parts (or part_code if missing)
-    existing_partname = ""
-    for p in (tep.customer.parts or []):
-        if isinstance(p, dict) and str(p.get("Partcode", "")).strip() == tep.part_code:
-            existing_partname = str(p.get("Partname", "")).strip()
-            break
-
-    base_partname = existing_partname or tep.part_code
-    _ensure_customer_part_entry(tep.customer, tep.part_code, base_partname)
+    mat_partcode = (payload.mat_partcode or "").strip()
+    if not mat_partcode:
+        return jresponse({"error": "mat_partcode is required"}, status=400)
 
     master = MaterialList.objects.filter(mat_partcode=mat_partcode).first()
     if not master:
-        return jresponse({"error": f"mat_partcode '{mat_partcode}' not found in master list."}, status=404)
-
+        return jresponse(
+            {"error": f"mat_partcode '{mat_partcode}' not found in master list."},
+            status=404,
+        )
+    
     loss = payload.loss_percent if payload.loss_percent is not None else 10.0
     total = round(float(payload.dim_qty) * (1 + (float(loss) / 100.0)), 4)
 
+    with transaction.atomic():
+        final_name = _allocate_material_name(
+            tep=tep,
+            base_name=master.mat_partname,
+            exclude_partcode=mat_partcode
+        )
+
     material, created = Material.objects.get_or_create(
         tep_code=tep,
-        mat_partcode=master.mat_partcode,
+        mat_partcode=mat_partcode,
         defaults={
-            "mat_partname": master.mat_partname,
+            "mat_partname": final_name,
             "mat_maker": master.mat_maker,
             "unit": master.unit,
             "dim_qty": payload.dim_qty,
@@ -498,15 +403,9 @@ def create_material_by_tep_code(
     )
 
     if not created:
-        return jresponse(
-            {"error": "Material already exists for this TEP + mat_partcode."},
-            status=409
-        )
+        return jresponse({"error": "Material already exists for this TEP + mat_partcode."}, status=409)
 
     return material
-
-
-
 
 
 @api.put("/tep-codes/{tep_code}/materials/{mat_partcode}",
@@ -583,115 +482,18 @@ def delete_material_by_tep_and_partcode(request, tep_code: str, mat_partcode: st
         status=200
     )
 
-
-"""@api.post("/upload-csv", tags=["CSV"])
-def upload_csv(request, file: UploadedFile = File(...)):
-    if not file:
-        return jresponse({"error": "No file uploaded."}, status=400)
-
-    try:
-        content = file.read().decode("utf-8")
-        csv_file = io.StringIO(content)
-        reader = csv.DictReader(csv_file)
-        reader.fieldnames = [h.strip().lstrip("\ufeff") for h in reader.fieldnames]
-
-        inserted = 0
-        updated = 0
-
-        def fnum(x, default=0.0):
-            try:
-                return float(x)
-            except Exception:
-                return float(default)
-
-        with transaction.atomic():
-            CustomerCSV.objects.create(csv_file=file)
-
-            for row in reader:
-                customer_name = (row.get("customer_name") or "").strip()
-                partcode = (row.get("Partcode") or row.get("part_code") or "").strip()
-                partname = (row.get("Partname") or row.get("part_name") or "").strip()
-                tep_code = (row.get("tep_code") or "").strip()
-
-                mat_partcode = (row.get("mat_partcode") or "").strip()
-                mat_partname = (row.get("mat_partname") or "").strip()
-                mat_maker = (row.get("mat_maker") or "").strip()
-                unit = (row.get("unit") or "dim_qty").strip()
-
-                dim_qty = fnum(row.get("dim_qty"), 0)
-                loss_percent = fnum(row.get("loss_percent"), 10.0)
-                total = fnum(row.get("total"), 0)
-
-                if not (customer_name and partcode and partname and tep_code and mat_partcode):
-                    continue
-
-                customer, _ = Customer.objects.get_or_create(customer_name=customer_name)
-
-                parts = customer.parts or []
-                exists = any(
-                    isinstance(p, dict)
-                    and str(p.get("Partcode", "")).strip() == partcode
-                    for p in parts
-                )
-                if not exists:
-                    parts.append({"Partcode": partcode, "Partname": partname})
-                    customer.parts = parts
-                    customer.save()
-
-                tep, _ = TEPCode.objects.get_or_create(
-                    customer=customer,
-                    part_code=partcode,
-                    tep_code=tep_code,
-                )
-
-                mat, created = Material.objects.get_or_create(
-                    tep_code=tep,
-                    mat_partcode=mat_partcode,
-                    defaults={
-                        "mat_partname": mat_partname,
-                        "mat_maker": mat_maker,
-                        "unit": unit,
-                        "dim_qty": dim_qty,
-                        "loss_percent": loss_percent,
-                        "total": total,
-                    }
-                )
-
-                if created:
-                    inserted += 1
-                else:
-                    mat.mat_partname = mat_partname or mat.mat_partname
-                    mat.mat_maker = mat_maker or mat.mat_maker
-                    mat.unit = unit or mat.unit
-                    mat.dim_qty = dim_qty if dim_qty != 0 else mat.qty
-                    mat.loss_percent = loss_percent if loss_percent != 0 else mat.loss_percent
-                    mat.total = total if total != 0 else mat.total
-                    mat.save()
-                    updated += 1
-
-        return jresponse(
-            {
-                "message": "CSV uploaded successfully",
-                "inserted_materials": inserted,
-                "updated_materials": updated,
-            },
-            status=200
-        )
-
-    except Exception as e:
-        return jresponse({"error": str(e)}, status=500)"""
-#new code for post
 @api.post("/upload-csv", tags=["CSV"])
 def upload_csv(request, file: UploadedFile = File(...)):
     if not file:
         return jresponse({"error": "No file uploaded."}, status=400)
-    
+
     try:
-        content = file.read().decode("utf-8")
+        content = file.read().decode("utf-8", errors="ignore")
         csv_file = io.StringIO(content)
         reader = csv.DictReader(csv_file)
 
-        reader.fieldnames = [h.strip().lstrip("\ufeff") for h in (reader.fieldname or [])]
+        reader.fieldnames = [h.strip().lstrip("\ufeff") for h in (reader.fieldnames or [])]
+
         inserted = 0
         updated = 0
         master_inserted = 0
@@ -709,41 +511,34 @@ def upload_csv(request, file: UploadedFile = File(...)):
                 return float(s)
             except Exception:
                 return float(default)
-        
+
         def sget(row, *keys, default=""):
             for k in keys:
                 v = row.get(k)
                 if v is not None and str(v).strip() != "":
                     return str(v).strip()
             return default
-        
+
         with transaction.atomic():
-            CustomerCSV.objects.create(csv_file=file)
+            try:
+                CustomerCSV.objects.create(csv_file=file)
+            except Exception:
+                pass
 
             for row in reader:
-               
-
-                mat_partcode = sget(row, "mat_partcode")
-                mat_partname = sget(row, "mat_partname")
-                mat_maker = sget(row, "mat_maker")
+                # ---------- MASTER LIST ----------
+                mat_partcode = sget(row, "mat_partcode", "material_part_code")
+                mat_partname = sget(row, "mat_partname", "material_name")
+                mat_maker = sget(row, "mat_maker", "maker")
                 unit = sget(row, "unit", default="pc").lower()
 
                 if unit not in ALLOWED_UNITS:
                     unit = "pc"
 
-                dim_qty = fnum(row.get("dim_qty"), 0.0)
-                loss_percent = fnum(row.get("loss_percent"), 10.0)
-
-                total_csv = row.get("total")
-                if total_csv is None or str(total_csv).strip() == "":
-                    total = round(float(dim_qty) * (1 + (float(loss_percent) / 100.0)), 4)
-                else:
-                    total = round(fnum(total_csv, 0.0), 4)
-                
-                if not (customer_name and partcode and partname and tep_code and mat_partcode):
+                if not mat_partcode:
                     continue
 
-                master, m_created = MaterialList.objects.get_or_create(
+                master, created_master = MaterialList.objects.get_or_create(
                     mat_partcode=mat_partcode,
                     defaults={
                         "mat_partname": mat_partname or mat_partcode,
@@ -751,13 +546,14 @@ def upload_csv(request, file: UploadedFile = File(...)):
                         "unit": unit,
                     }
                 )
-                if m_created:
+
+                if created_master:
                     master_inserted += 1
                 else:
                     changed = False
                     if mat_partname and master.mat_partname != mat_partname:
                         master.mat_partname = mat_partname
-                        change = True
+                        changed = True
                     if mat_maker and master.mat_maker != mat_maker:
                         master.mat_maker = mat_maker
                         changed = True
@@ -768,20 +564,37 @@ def upload_csv(request, file: UploadedFile = File(...)):
                         master.save()
                         master_updated += 1
 
+                # ---------- ORDER RECORDS ----------
+                customer_name = sget(row, "customer_name")
+                partcode = sget(row, "Partcode", "part_code")
+                partname = sget(row, "Partname", "part_name")
+                tep_code = sget(row, "tep_code")
+
+                dim_qty = fnum(row.get("dim_qty"), 0.0)
+                loss_percent = fnum(row.get("loss_percent"), 10.0)
+
+                total_csv = row.get("total")
+                if total_csv is None or str(total_csv).strip() == "":
+                    total = round(float(dim_qty) * (1 + (float(loss_percent) / 100.0)), 4)
+                else:
+                    total = round(fnum(total_csv, 0.0), 4)
+
+                # if this CSV is only master list (no customer fields), skip order insert
+                if not (customer_name and partcode and partname and tep_code):
+                    continue
+
                 customer, _ = Customer.objects.get_or_create(customer_name=customer_name)
 
-                """parts = customer.parts or []
+                # keep your parts list updated (and allow your Tape/Tape 1 logic if you prefer)
+                parts = customer.parts or []
                 exists = any(
-                    isinstance(p, dict)
-                    and str(p.get("Partcode", "")).strip() == partcode
+                    isinstance(p, dict) and str(p.get("Partcode", "")).strip() == partcode
                     for p in parts
                 )
                 if not exists:
                     parts.append({"Partcode": partcode, "Partname": partname})
                     customer.parts = parts
-                    customer.save()"""
-                _ensure_customer_part_entry(customer, partcode, partname)
-
+                    customer.save()
 
                 tep, _ = TEPCode.objects.get_or_create(
                     customer=customer,
@@ -789,52 +602,70 @@ def upload_csv(request, file: UploadedFile = File(...)):
                     tep_code=tep_code,
                 )
 
-                mat, created = Material.objects.get_or_create(
-                    tep_code=tep,
-                    mat_partcode=master.mat_partcode,
-                    defaults={
-                        "mat_partname": master.mat_partname,
-                        "mat_maker": master.mat_maker,
-                        "unit": master.unit,
-                        "dim_qty": dim_qty,
-                        "loss_percent": loss_percent,
-                        "total": total,
-                    }
-                )
+                # ✅ IMPORTANT: rename-first + insert must be in SAME atomic block
+                with transaction.atomic():
+                    # If material already exists, do NOT allocate/rename
+                    existing_mat = Material.objects.filter(
+                        tep_code=tep,
+                        mat_partcode=master.mat_partcode
+                    ).first()
 
-                if created:
+                    if existing_mat:
+                        # update quantities only; do NOT overwrite the numbered name
+                        if dim_qty != 0:
+                            existing_mat.dim_qty = dim_qty
+                        if loss_percent != 0:
+                            existing_mat.loss_percent = loss_percent
+
+                        if total_csv is None or str(total_csv).strip() == "":
+                            existing_mat.total = round(
+                                float(existing_mat.dim_qty) * (1 + (float(existing_mat.loss_percent) / 100.0)),
+                                4
+                            )
+                        else:
+                            existing_mat.total = total
+
+                        # keep maker/unit synced to master (optional)
+                        existing_mat.mat_maker = master.mat_maker
+                        existing_mat.unit = master.unit
+                        existing_mat.save()
+
+                        updated += 1
+                        continue
+
+                    # allocate name only for NEW insert
+                    final_name = _allocate_material_name(
+                        tep=tep,
+                        base_name=master.mat_partname,
+                        exclude_partcode=master.mat_partcode
+                    )
+
+                    Material.objects.create(
+                        tep_code=tep,
+                        mat_partcode=master.mat_partcode,
+                        mat_partname=final_name,
+                        mat_maker=master.mat_maker,
+                        unit=master.unit,
+                        dim_qty=dim_qty,
+                        loss_percent=loss_percent,
+                        total=total,
+                    )
                     inserted += 1
-                else:
-                    mat.mat_partname = master.mat_partname
-                    mat.mat_maker = master.mat_maker
-                    mat.unit = master.unit
 
-                    if dim_qty != 0:
-                        mat.dim_qty = dim_qty
-                    if loss_percent != 0:
-                        mat.loss_percent = loss_percent
-                    
-                    if total_csv is None or str(total_csv).strip() == "":
-                        mat.total = round(float(mat.dim_qty) * (1 + (float(mat.loss_percent) / 100.0)), 4)
-                    else:
-                        mat.total = total
-
-                    mat.save()
-                    updated += 1
-        
         return jresponse(
             {
-                "message": "CSV uploaded successfully (master list + materials)",
-                "master_insertes": master_inserted,
+                "message": "CSV uploaded successfully",
+                "master_inserted": master_inserted,
                 "master_updated": master_updated,
                 "inserted_materials": inserted,
                 "updated_materials": updated,
             },
             status=200
         )
-    
+
     except Exception as e:
         return jresponse({"error": str(e)}, status=500)
+
 
     
 

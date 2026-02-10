@@ -7,23 +7,9 @@ class CustomerPart(Schema):
     Partname: str
 
 
-"""class MaterialIn(Schema): #my original schema for the MaterialIn
-    mat_partcode: str
-    mat_partname: str
-    mat_maker: str
-    unit: str
-    dim_qty: float
-    loss_percent: Optional[float] = 10.0
-    total: float"""
-
 #new syntax for the MaterialIn schema
 class MaterialIn(Schema):
     mat_partcode:str
-    dim_qty: float
-    loss_percent: Optional[float] = 10.0
-
-class MaterialIn(Schema):
-    mat_partcode: str
     dim_qty: float
     loss_percent: Optional[float] = 10.0
 
