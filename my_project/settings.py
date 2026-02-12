@@ -38,7 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "app",
-    "ninja",
+    "ninja",    
 ]
 
 MIDDLEWARE = [
@@ -117,3 +117,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/"       # after login go to your app homepage (customer list)
+LOGOUT_REDIRECT_URL = "/login/"
+
+
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True

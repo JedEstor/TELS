@@ -5,6 +5,8 @@
    
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.conf import settings
+from django.contrib.auth.models import User
 
 class Customer(models.Model):
     customer_name = models.CharField(max_length=120)
@@ -81,6 +83,7 @@ class Material(models.Model):
     def __str__(self):
         return f"{self.mat_partname} ({self.mat_partcode})"
     
+
 # New syntax for the material list model.
 class MaterialList(models.Model):
     UNIT_CHOICES = [
@@ -106,3 +109,11 @@ class CustomerCSV(models.Model):
         return f"CustomerCSV {self.id}"
 
 
+class EmployeeProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    employee_id = models.CharField(max_length=30, unique=True)
+    full_name = models.CharField(max_length=150)
+    department = models.CharField(max_length=100)
+
+    def __str__(self):
+        return f"{self.employee_id} - {self.full_name}"

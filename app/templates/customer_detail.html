@@ -11,12 +11,17 @@
       <div>
         <h1 class="text-2xl font-bold">{{ customer.customer_name }}</h1>
 
-        <p class="text-slate-600 mt-1">
-          Part Code:
-          <span class="font-medium text-slate-900">
-            {{ selected_part }}
-          </span>
-        </p>
+        <div class="mt-1 flex flex-wrap gap-x-16 gap-y-2">
+          <div class="min-w-[280px]">
+            <span class="text-slate-600">Part Code:</span>
+            <span class="font-medium text-slate-900 ml-2">{{ selected_part }}</span>
+          </div>
+
+          <div class="min-w-[280px]">
+            <span class="text-slate-600">Part Name:</span>
+            <span class="font-medium text-slate-900 ml-2">{{ selected_part_name }}</span>
+          </div>
+        </div>
 
         <p class="text-slate-600">
           TEP Code:
@@ -27,13 +32,14 @@
       </div>
 
       <div class="flex gap-2">
-        {% if tep_id %}
-          <a href="/api/tep-codes/{{ tep_id }}/materials" target="_blank"
-             class="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">
+        {% if selected_tep %}
+          <a href="/api/tep-codes/{{ selected_tep }}/materials" target="_blank"
+            class="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">
             View Materials JSON
           </a>
-        {% endif %}
 
+        {% endif %}
+        
       </div>
     </div>
   </div>

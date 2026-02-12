@@ -36,13 +36,11 @@ def _unique_partname_for_customer(customer, base_name, part_code):
 
     parts = customer.parts or []
 
-    # If this Partcode already exists, keep its existing Partname
     for p in parts:
         if isinstance(p, dict) and _normalize_space(p.get("Partcode")) == part_code:
             existing = _normalize_space(p.get("Partname"))
             return existing or base_name
-
-    # collect existing part names
+        
     existing_names = set()
     for p in parts:
         if isinstance(p, dict):
@@ -50,11 +48,9 @@ def _unique_partname_for_customer(customer, base_name, part_code):
             if n:
                 existing_names.add(n.lower())
 
-    # base name is free
     if base_name.lower() not in existing_names:
         return base_name
 
-    # find next suffix
     i = 1
     while True:
         candidate = f"{base_name} {i}"
@@ -87,7 +83,6 @@ def _ensure_customer_part_entry(customer, part_code, part_name):
 
     return True, unique_name
 
-#9:27 am new ------------- start
 def _allocate_material_name(tep, base_name: str, exclude_partcode: str = "") -> str:
     """
     Desired behavior per TEP:
@@ -101,7 +96,6 @@ def _allocate_material_name(tep, base_name: str, exclude_partcode: str = "") -> 
 
     exclude_partcode = (exclude_partcode or "").strip()
 
-    # Get all names like: BASE or BASE N
     qs = Material.objects.filter(
         tep_code=tep,
         mat_partname__iregex=rf"^{re.escape(base)}( \d+)?$"
@@ -111,11 +105,9 @@ def _allocate_material_name(tep, base_name: str, exclude_partcode: str = "") -> 
 
     existing_names = list(qs.values_list("mat_partname", flat=True))
 
-    # No existing -> first is base (TAPE)
     if not existing_names:
         return base
 
-    # Find numbered suffixes
     numbers = []
     for n in existing_names:
         m = re.match(
@@ -126,8 +118,6 @@ def _allocate_material_name(tep, base_name: str, exclude_partcode: str = "") -> 
         if m and m.group(1):
             numbers.append(int(m.group(1)))
 
-    # If base exists but no numbered yet, we are inserting the 2nd duplicate.
-    # Rename the existing BASE -> BASE 1, then return BASE 2 for the new one.
     if not numbers:
         existing_base = Material.objects.filter(
             tep_code=tep,
@@ -143,9 +133,7 @@ def _allocate_material_name(tep, base_name: str, exclude_partcode: str = "") -> 
 
         return f"{base} 2"
 
-    # Otherwise continue incrementing
     return f"{base} {max(numbers) + 1}"
-# end ----------------- very new until here 9:27am
 
 @api.get("/customers", tags=["CUSTOMER"])
 def customers_tree(request, q: str = ""):
@@ -256,12 +244,10 @@ def update_customer(request, customer_id: int, payload: CustomerIn):
     customer.save()
     return customer
 
-
 @api.delete("/customers/{customer_id}", tags=["CUSTOMER"])
 def delete_customer(request, customer_id: int):
     Customer.objects.filter(id=customer_id).delete()
     return jresponse({"message": "Customer deleted"})
-
 
 
 @api.get("/customers/{customer_id}/tep-codes", response=list[TEPCodeOut], tags=["TEP"])
@@ -326,7 +312,6 @@ def delete_tep_code_by_code(request, tep_code: str):
         status=200
     )
 
-
 @api.get("/tep-codes/{tep_code}/materials", response=list[MaterialOut], tags=["MATERIAL"])
 def list_materials_by_tep_code(request, tep_code: str):
     tep_code = (tep_code or "").strip()
@@ -340,7 +325,6 @@ def list_materials_by_tep_code(request, tep_code: str):
 
 
 @api.post("/tep-codes/by-code/{tep_code}/materials", response=MaterialOut, tags=["MATERIAL"])
-
 def create_material_by_tep_code(
     request,
     tep_code: str,
@@ -526,7 +510,6 @@ def upload_csv(request, file: UploadedFile = File(...)):
                 pass
 
             for row in reader:
-                # ---------- MASTER LIST ----------
                 mat_partcode = sget(row, "mat_partcode", "material_part_code")
                 mat_partname = sget(row, "mat_partname", "material_name")
                 mat_maker = sget(row, "mat_maker", "maker")
@@ -564,7 +547,6 @@ def upload_csv(request, file: UploadedFile = File(...)):
                         master.save()
                         master_updated += 1
 
-                # ---------- ORDER RECORDS ----------
                 customer_name = sget(row, "customer_name")
                 partcode = sget(row, "Partcode", "part_code")
                 partname = sget(row, "Partname", "part_name")
@@ -579,13 +561,11 @@ def upload_csv(request, file: UploadedFile = File(...)):
                 else:
                     total = round(fnum(total_csv, 0.0), 4)
 
-                # if this CSV is only master list (no customer fields), skip order insert
                 if not (customer_name and partcode and partname and tep_code):
                     continue
 
                 customer, _ = Customer.objects.get_or_create(customer_name=customer_name)
 
-                # keep your parts list updated (and allow your Tape/Tape 1 logic if you prefer)
                 parts = customer.parts or []
                 exists = any(
                     isinstance(p, dict) and str(p.get("Partcode", "")).strip() == partcode
@@ -602,16 +582,13 @@ def upload_csv(request, file: UploadedFile = File(...)):
                     tep_code=tep_code,
                 )
 
-                # ✅ IMPORTANT: rename-first + insert must be in SAME atomic block
                 with transaction.atomic():
-                    # If material already exists, do NOT allocate/rename
                     existing_mat = Material.objects.filter(
                         tep_code=tep,
                         mat_partcode=master.mat_partcode
                     ).first()
 
                     if existing_mat:
-                        # update quantities only; do NOT overwrite the numbered name
                         if dim_qty != 0:
                             existing_mat.dim_qty = dim_qty
                         if loss_percent != 0:
@@ -625,7 +602,6 @@ def upload_csv(request, file: UploadedFile = File(...)):
                         else:
                             existing_mat.total = total
 
-                        # keep maker/unit synced to master (optional)
                         existing_mat.mat_maker = master.mat_maker
                         existing_mat.unit = master.unit
                         existing_mat.save()
@@ -633,7 +609,6 @@ def upload_csv(request, file: UploadedFile = File(...)):
                         updated += 1
                         continue
 
-                    # allocate name only for NEW insert
                     final_name = _allocate_material_name(
                         tep=tep,
                         base_name=master.mat_partname,
@@ -666,8 +641,6 @@ def upload_csv(request, file: UploadedFile = File(...)):
     except Exception as e:
         return jresponse({"error": str(e)}, status=500)
 
-
-    
 
 #new code for the output    
 @api.get("/output-format", tags=["GET DETAILS"])
