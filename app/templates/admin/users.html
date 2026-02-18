@@ -7,10 +7,8 @@
 </head>
 
 <body class="min-h-screen bg-slate-900 text-slate-100">
-  <!-- Make it wider + give more horizontal room -->
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-    <!-- Header -->
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
         <h1 class="text-xl font-bold text-blue-400">User Management</h1>
@@ -29,7 +27,6 @@
       </div>
     </div>
 
-    <!-- Messages -->
     {% if messages %}
       <div class="space-y-2">
         {% for message in messages %}
@@ -40,7 +37,6 @@
       </div>
     {% endif %}
 
-    <!-- Search -->
     <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4">
       <form method="get" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-2 w-full sm:w-auto">
@@ -66,9 +62,7 @@
       </form>
     </div>
 
-    <!-- Table -->
     <div class="overflow-x-auto bg-slate-800 rounded-2xl border border-slate-700">
-      <!-- Min width forces the table to keep columns readable and scroll horizontally if needed -->
       <table class="w-full text-sm min-w-[1100px]">
         <thead class="bg-slate-900/60 text-slate-300">
           <tr>
@@ -163,7 +157,6 @@
       </table>
     </div>
 
-    <!-- Small hint on very small screens -->
     <div class="text-xs text-slate-500">
       Tip: If your screen is small, scroll sideways inside the table to see the Action column.
     </div>

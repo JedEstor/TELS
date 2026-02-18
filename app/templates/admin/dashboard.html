@@ -8,7 +8,6 @@
 
 <body class="min-h-screen bg-slate-100 text-slate-900">
 
-  <!-- ====== TOP (DARK BLUE) ====== -->
   <div class="bg-slate-900 text-slate-100">
     <div class="max-w-7xl mx-auto p-6 space-y-6">
 
@@ -19,16 +18,21 @@
         </div>
 
         <div class="flex flex-wrap gap-2">
-          <!-- ✅ Removed Users button (Users is now a tab) -->
-
           <a href="{% url 'app:customer_list' %}"
              class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white">
             Customers Page
           </a>
         </div>
+
+        <div class="flex flex-wrap gap-2">
+           <a href="{% url 'app:logout' %}"
+            class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white">
+            Logout
+          </a>
+        </div>
+
       </div>
 
-      <!-- Stats -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
           <div class="text-sm text-slate-300">Customers</div>
@@ -51,11 +55,9 @@
     </div>
   </div>
 
-  <!-- ====== BOTTOM (WHITE) ====== -->
   <div class="bg-white">
     <div class="max-w-7xl mx-auto p-6 space-y-6">
 
-      <!-- Tabs -->
       <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
         <a href="?tab=customers&q={{ q|urlencode }}"
            class="px-4 py-2 rounded-xl border text-sm
@@ -76,7 +78,6 @@
         </a>
       </div>
 
-      <!-- Messages -->
       {% if messages %}
         <div class="space-y-2">
           {% for message in messages %}
@@ -94,132 +95,223 @@
         </div>
       {% endif %}
 
-      <!-- ================================================================= -->
-      <!-- ======================= TAB: CUSTOMERS =========================== -->
-      <!-- ================================================================= -->
       {% if tab == "customers" %}
 
-      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        <div class="px-5 py-4 border-b border-slate-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 class="text-lg font-semibold text-slate-900">Customer Records</h2>
-            <p class="text-sm text-slate-500">Select part + TEP, then View opens the panel.</p>
+        <div class="lg:col-span-8">
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+
+            <div class="px-5 py-4 border-b border-slate-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 class="text-lg font-semibold text-slate-900">Customer Records</h2>
+              </div>
+
+              <form method="get" class="flex gap-2">
+                <input type="hidden" name="tab" value="customers">
+                <input
+                  type="text"
+                  name="q"
+                  value="{{ q|default:'' }}"
+                  placeholder="Search customer / tep_code / part_code / materials..."
+                  class="w-80 max-w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <button class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white" type="submit">
+                  Search
+                </button>
+              </form>
+            </div>
+
+            <div>
+              <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-700">
+                  <tr>
+                    <th class="px-4 py-3 text-left">Customer</th>
+                    <th class="px-4 py-3 text-left">Part Code</th>
+                    <th class="px-4 py-3 text-left">TEP Code</th>
+                    <th class="px-4 py-3 text-left">Materials</th>
+                    <th class="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                {% for c in customers %}
+                  <tr class="border-t border-slate-200 hover:bg-slate-50">
+                    <td class="px-4 py-3 font-medium">{{ c.customer_name }}</td>
+
+                    <td class="px-4 py-3">
+                      <select class="part-code-dropdown px-2 py-1 rounded border border-slate-300 bg-white text-slate-900"
+                              data-row="{{ forloop.counter0 }}">
+                        {% for pc in c.part_code_options %}
+                          <option value="{{ pc }}" {% if pc == c.default_part_code %}selected{% endif %}>{{ pc }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+
+                    <td class="px-4 py-3">
+                      <select class="tep-code-dropdown px-2 py-1 rounded border border-slate-300 bg-white text-slate-900"
+                              data-row="{{ forloop.counter0 }}"
+                              id="tep-dd-{{ forloop.counter0 }}">
+                        {% for t in c.default_tep_options %}
+                          <option value="{{ t.tep_id }}" {% if t.tep_id == c.default_tep_id %}selected{% endif %}>
+                            {{ t.tep_code }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                    </td>
+
+                    <td class="px-4 py-3" id="mat-{{ forloop.counter0 }}">
+                      {{ c.default_materials_count|default:0 }}
+                    </td>
+
+                    <td class="px-4 py-3 text-right">
+                      {% if c.default_tep_id %}
+                        <a href="#"
+                           class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white view-link inline-flex"
+                           id="view-{{ forloop.counter0 }}"
+                           data-tep-id="{{ c.default_tep_id }}"
+                           data-part-code="{{ c.default_part_code|escapejs }}">
+                          View
+                        </a>
+                      {% else %}
+                        <span class="px-3 py-2 rounded-xl bg-slate-200 text-slate-600 inline-block">No TEP</span>
+                        <a href="#" class="hidden view-link" id="view-{{ forloop.counter0 }}">View</a>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="5" class="px-4 py-10 text-center text-slate-500">
+                      No customers found.
+                    </td>
+                  </tr>
+                {% endfor %}
+                </tbody>
+
+              </table>
+            </div>
+
           </div>
-
-          <form method="get" class="flex gap-2">
-            <input type="hidden" name="tab" value="customers">
-            <input
-              type="text"
-              name="q"
-              value="{{ q|default:'' }}"
-              placeholder="Search customer / tep_code / part_code / materials..."
-              class="w-80 max-w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900
-                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-            <button class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white" type="submit">
-              Search
-            </button>
-          </form>
         </div>
 
-        <div>
-          <table class="w-full text-sm">
-            <thead class="bg-slate-50 text-slate-700">
-              <tr>
-                <th class="px-4 py-3 text-left">Customer</th>
-                <th class="px-4 py-3 text-left">Part Code</th>
-                <th class="px-4 py-3 text-left">TEP Code</th>
-                <th class="px-4 py-3 text-left">Materials</th>
-                <th class="px-4 py-3 text-right">Action</th>
-              </tr>
-            </thead>
+        <div class="lg:col-span-4">
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 lg:sticky lg:top-6">
+            <div>
+              <h3 class="text-base font-semibold text-slate-900">Add Customer Record</h3>
+            </div>
 
-            <tbody>
-            {% for c in customers %}
-              <tr class="border-t border-slate-200 hover:bg-slate-50">
-                <td class="px-4 py-3 font-medium">{{ c.customer_name }}</td>
+            <form method="post" class="mt-4 space-y-3" id="customer-full-form">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="add_customer_full">
 
-                <td class="px-4 py-3">
-                  <select class="part-code-dropdown px-2 py-1 rounded border border-slate-300 bg-white text-slate-900"
-                          data-row="{{ forloop.counter0 }}">
-                    {% for pc in c.part_code_options %}
-                      <option value="{{ pc }}" {% if pc == c.default_part_code %}selected{% endif %}>{{ pc }}</option>
-                    {% endfor %}
-                  </select>
-                </td>
+              <div>
+                <label class="text-sm font-medium text-slate-700">Customer Name</label>
+                <input type="text" name="customer_name" required
+                       class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
+                              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              </div>
 
-                <td class="px-4 py-3">
-                  <select class="tep-code-dropdown px-2 py-1 rounded border border-slate-300 bg-white text-slate-900"
-                          data-row="{{ forloop.counter0 }}"
-                          id="tep-dd-{{ forloop.counter0 }}">
-                    {% for t in c.default_tep_options %}
-                      <option value="{{ t.tep_id }}" {% if t.tep_id == c.default_tep_id %}selected{% endif %}>
-                        {{ t.tep_code }}
-                      </option>
-                    {% endfor %}
-                  </select>
-                </td>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-sm font-medium text-slate-700">Partcode</label>
+                  <input type="text" name="part_code" required
+                         class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-slate-700">Partname</label>
+                  <input type="text" name="part_name" required
+                         class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+              </div>
 
-                <td class="px-4 py-3" id="mat-{{ forloop.counter0 }}">
-                  {{ c.default_materials_count|default:0 }}
-                </td>
+              <div>
+                <label class="text-sm font-medium text-slate-700">TEP Code</label>
+                <input type="text" name="tep_code" required
+                       class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
+                              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              </div>
 
-                <td class="px-4 py-3 text-right">
-                  {% if c.default_tep_id %}
-                    <a href="#"
-                       class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white view-link inline-flex"
-                       id="view-{{ forloop.counter0 }}"
-                       data-tep-id="{{ c.default_tep_id }}"
-                       data-part-code="{{ c.default_part_code|escapejs }}">
-                      View
-                    </a>
-                  {% else %}
-                    <span class="px-3 py-2 rounded-xl bg-slate-200 text-slate-600 inline-block">No TEP</span>
-                    <a href="#" class="hidden view-link" id="view-{{ forloop.counter0 }}">View</a>
-                  {% endif %}
-                </td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="5" class="px-4 py-10 text-center text-slate-500">
-                  No customers found.
-                </td>
-              </tr>
-            {% endfor %}
-            </tbody>
+              <hr class="my-2">
 
-          </table>
+              <div>
+                <label class="text-sm font-medium text-slate-700">Material Partcode (from master list)</label>
+                <input type="text" name="mat_partcode" id="mat-partcode-input" required
+                       placeholder="e.g. 223S 0.19x19 BLACK"
+                       class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
+                              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <div class="text-xs text-slate-500 mt-1" id="mat-master-hint"></div>
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-slate-700">Material Partname</label>
+                <input type="text" name="mat_partname" id="mat-partname" readonly
+                       class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-slate-700">Maker</label>
+                <input type="text" name="mat_maker" id="mat-maker" readonly
+                       class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-slate-700">Unit</label>
+                <input type="text" name="unit" id="mat-unit" readonly
+                       class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-sm font-medium text-slate-700">Dim/Qty</label>
+                  <input type="number" step="0.0001" name="dim_qty" id="dim-qty" required
+                         class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-slate-700">Loss %</label>
+                  <input type="number" step="0.01" name="loss_percent" id="loss-percent" value="10"
+                         class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <div class="text-xs text-slate-500 mt-1">Default 10%</div>
+                </div>
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-slate-700">Total</label>
+                <input type="text" name="total" id="total-field" readonly
+                       class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
+              </div>
+
+              <div class="pt-2">
+                <button type="submit"
+                        class="w-full px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white">
+                  Save Record
+                </button>
+              </div>
+            </form>
+
+          </div>
         </div>
 
       </div>
-
       {% endif %}
 
-      <!-- ================================================================= -->
-      <!-- ======================= TAB: MATERIALS =========================== -->
-      <!-- ================================================================= -->
       {% if tab == "materials" %}
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        <!-- LEFT: table -->
         <div class="lg:col-span-8">
           <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
 
             <div class="px-5 py-4 border-b border-slate-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 class="text-lg font-semibold text-slate-900">Material Masterlist</h2>
-                <p class="text-sm text-slate-500">Paginated (10 per page). Edit / delete using Actions.</p>
               </div>
 
-              <!-- Aligned CSV + Search -->
               <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                <button type="button" id="open-csv-upload"
-                  class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white whitespace-nowrap">
-                  CSV Upload
-                </button>
-
                 <form method="get" class="flex items-center gap-2">
                   <input type="hidden" name="tab" value="materials">
                   <input
@@ -249,8 +341,8 @@
               {% endif %}
             </div>
 
-            <div class="overflow-x-auto">
-              <table class="w-full min-w-[1180px] text-sm">
+            <div>
+              <table class="w-full text-sm">
                 <thead class="bg-slate-50 text-slate-700">
                   <tr>
                     <th class="px-4 py-3 text-left">Part Code</th>
@@ -288,10 +380,8 @@
                           {% csrf_token %}
                           <input type="hidden" name="action" value="delete_material">
                           <input type="hidden" name="mat_id" value="{{ m.id }}">
-                          <button
-                            type="submit"
-                            class="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white"
-                          >
+                          <button type="submit"
+                                  class="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white">
                             Delete
                           </button>
                         </form>
@@ -310,7 +400,6 @@
               </table>
             </div>
 
-            <!-- Pagination controls -->
             {% if page_obj and page_obj.paginator.num_pages > 1 %}
             <div class="px-5 py-4 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
               <div class="text-sm text-slate-500">
@@ -359,12 +448,18 @@
           </div>
         </div>
 
-        <!-- RIGHT: add form -->
         <div class="lg:col-span-4">
           <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 lg:sticky lg:top-6">
-            <div>
-              <h3 class="text-base font-semibold text-slate-900">Add Material</h3>
-              <p class="text-sm text-slate-500">Insert directly into MaterialList.</p>
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="text-base font-semibold text-slate-900">Add Material</h3>
+                <p class="text-sm text-slate-500">Insert directly into MaterialList.</p>
+              </div>
+
+              <button type="button" id="open-csv-upload"
+                class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white whitespace-nowrap">
+                CSV Upload
+              </button>
             </div>
 
             <form method="post" class="mt-4 space-y-3">
@@ -400,6 +495,8 @@
                   <option value="pc">pc</option>
                   <option value="pcs">pcs</option>
                   <option value="m">m</option>
+                  <option value="g">g</option>
+                  <option value="kg">kg</option>
                 </select>
               </div>
 
@@ -416,21 +513,16 @@
       </div>
       {% endif %}
 
-      <!-- ================================================================= -->
-      <!-- ======================== TAB: USERS ============================== -->
-      <!-- ================================================================= -->
       {% if tab == "users" %}
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        <!-- LEFT: Users table (NO vertical scrollbar, just normal page) -->
         <div class="lg:col-span-8">
           <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
 
             <div class="px-5 py-4 border-b border-slate-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 class="text-lg font-semibold text-slate-900">User Management</h2>
-                <p class="text-sm text-slate-500">Paginated (10 per page). Toggle active if needed.</p>
               </div>
 
               <form method="get" class="flex items-center gap-2">
@@ -460,14 +552,13 @@
             </div>
 
             <div class="overflow-x-auto">
-              <table class="w-full min-w-[980px] text-sm">
+              <table class="w-full min-w-[1160px] text-sm">
                 <thead class="bg-slate-50 text-slate-700">
                   <tr>
                     <th class="px-4 py-3 text-left">Employee ID</th>
                     <th class="px-4 py-3 text-left">Full Name</th>
                     <th class="px-4 py-3 text-left">Department</th>
-                    <th class="px-4 py-3 text-left">Staff</th>
-                    <th class="px-4 py-3 text-left">Admin</th>
+                    <th class="px-4 py-3 text-left">Role</th>
                     <th class="px-4 py-3 text-left">Status</th>
                     <th class="px-4 py-3 text-right">Action</th>
                   </tr>
@@ -494,21 +585,11 @@
                       {% endif %}
                     </td>
 
-                    <!-- ✅ YES/NO (Staff) -->
-                    <td class="px-4 py-3">
-                      {% if u.is_staff %}
-                        <span class="px-2 py-1 rounded-lg text-xs bg-emerald-100 text-emerald-700">Yes</span>
-                      {% else %}
-                        <span class="px-2 py-1 rounded-lg text-xs bg-slate-100 text-slate-600">No</span>
-                      {% endif %}
-                    </td>
-
-                    <!-- ✅ YES/NO (Admin) -->
                     <td class="px-4 py-3">
                       {% if u.is_superuser %}
-                        <span class="px-2 py-1 rounded-lg text-xs bg-emerald-100 text-emerald-700">Yes</span>
+                        <span class="px-2 py-1 rounded-lg text-xs bg-violet-100 text-violet-700">Admin</span>
                       {% else %}
-                        <span class="px-2 py-1 rounded-lg text-xs bg-slate-100 text-slate-600">No</span>
+                        <span class="px-2 py-1 rounded-lg text-xs bg-blue-100 text-blue-700">Staff</span>
                       {% endif %}
                     </td>
 
@@ -524,21 +605,61 @@
                       {% if u.id == request.user.id %}
                         <span class="text-slate-400 text-sm">Current</span>
                       {% else %}
-                        <form method="post" class="inline">
-                          {% csrf_token %}
-                          <input type="hidden" name="action" value="toggle_user_active">
-                          <input type="hidden" name="user_id" value="{{ u.id }}">
-                          <button type="submit"
-                                  class="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700">
-                            Toggle Active
-                          </button>
-                        </form>
+                        <div class="inline-flex items-center gap-2 flex-wrap justify-end">
+
+                          <form method="post" class="inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="toggle_user_active">
+                            <input type="hidden" name="user_id" value="{{ u.id }}">
+                            <button type="submit"
+                                    class="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700">
+                              Toggle Active
+                            </button>
+                          </form>
+
+                          <form method="post" class="inline"
+                                onsubmit="return confirm(
+                                  'Change ADMIN role for {{ u.username }}?\n\n' +
+                                  '• Admin = full permissions\n' +
+                                  '• Staff = normal staff access\n\n' +
+                                  'Continue?'
+                                );">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="toggle_user_admin">
+                            <input type="hidden" name="user_id" value="{{ u.id }}">
+                            <button type="submit"
+                                    class="px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white">
+                              {% if u.is_superuser %}Remove Admin{% else %}Make Admin{% endif %}
+                            </button>
+                          </form>
+
+                          <form method="post" class="inline"
+                                onsubmit="return confirm(
+                                  'REMOVE STAFF = DELETE ACCOUNT\n\n' +
+                                  'User: {{ u.username }}\n\n' +
+                                  'This will PERMANENTLY:\n' +
+                                  '• Delete this user from the database\n' +
+                                  '• Delete employee profile (if exists)\n' +
+                                  '• Remove access immediately\n\n' +
+                                  'THIS CANNOT BE UNDONE.\n\n' +
+                                  'Continue?'
+                                );">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="remove_staff">
+                            <input type="hidden" name="user_id" value="{{ u.id }}">
+                            <button type="submit"
+                                    class="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white">
+                              Remove Staff
+                            </button>
+                          </form>
+
+                        </div>
                       {% endif %}
                     </td>
                   </tr>
                   {% empty %}
                   <tr>
-                    <td colspan="7" class="px-4 py-10 text-center text-slate-500">
+                    <td colspan="6" class="px-4 py-10 text-center text-slate-500">
                       No users found.
                     </td>
                   </tr>
@@ -548,7 +669,6 @@
               </table>
             </div>
 
-            <!-- Users pagination -->
             {% if users_page and users_page.paginator.num_pages > 1 %}
             <div class="px-5 py-4 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
               <div class="text-sm text-slate-500">
@@ -597,12 +717,10 @@
           </div>
         </div>
 
-        <!-- RIGHT: Add Employee -->
         <div class="lg:col-span-4">
           <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 lg:sticky lg:top-6">
             <div>
               <h3 class="text-base font-semibold text-slate-900">Add Employee</h3>
-              <p class="text-sm text-slate-500">Creates user + profile (employee_id, full name, department, password).</p>
             </div>
 
             <form method="post" class="mt-4 space-y-3">
@@ -655,7 +773,6 @@
     </div>
   </div>
 
-  <!-- ===================== CUSTOMER DETAIL PANEL ===================== -->
   <div id="panel-backdrop" class="hidden fixed inset-0 bg-black/50 z-40"></div>
 
   <div id="detail-panel"
@@ -676,7 +793,6 @@
     </div>
   </div>
 
-  <!-- ===================== CSV UPLOAD MODAL ===================== -->
   <div id="csv-backdrop" class="hidden fixed inset-0 bg-black/50 z-40"></div>
 
   <div id="csv-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -719,7 +835,6 @@
     </div>
   </div>
 
-  <!-- ===================== EDIT MODAL (materials) ===================== -->
   <div id="edit-backdrop" class="hidden fixed inset-0 bg-black/50 z-40"></div>
 
   <div id="edit-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -769,6 +884,8 @@
             <option value="pc">pc</option>
             <option value="pcs">pcs</option>
             <option value="m">m</option>
+            <option value="g">g</option>
+            <option value="kg">kg</option>
           </select>
         </div>
 
@@ -787,7 +904,6 @@
   </div>
 
   <script>
-    // ========= Customer dropdowns (customers tab) =========
     const partMaps = [
       {% for c in customers %}
         {{ c.part_code_map_json|safe }},
@@ -857,7 +973,6 @@
       });
     });
 
-    // ========= Customer panel =========
     const panel = document.getElementById("detail-panel");
     const backdrop = document.getElementById("panel-backdrop");
     const panelClose = document.getElementById("panel-close");
@@ -894,7 +1009,6 @@
       });
     });
 
-    // ========= CSV modal =========
     const openCSV = document.getElementById("open-csv-upload");
     const csvModal = document.getElementById("csv-modal");
     const csvBackdrop = document.getElementById("csv-backdrop");
@@ -918,7 +1032,6 @@
     if (csvCancel) csvCancel.addEventListener("click", closeCSVModal);
     if (csvBackdrop) csvBackdrop.addEventListener("click", closeCSVModal);
 
-    // ========= EDIT modal (materials) =========
     const editBackdrop = document.getElementById("edit-backdrop");
     const editModal = document.getElementById("edit-modal");
     const editClose = document.getElementById("edit-close");
@@ -964,6 +1077,64 @@
         });
       });
     });
+
+    const MASTER_MAP = {{ master_map_json|safe }};
+
+    const mpCode = document.getElementById("mat-partcode-input");
+    const mpName = document.getElementById("mat-partname");
+    const mpMaker = document.getElementById("mat-maker");
+    const mpUnit = document.getElementById("mat-unit");
+    const mpHint = document.getElementById("mat-master-hint");
+
+    const dimQty = document.getElementById("dim-qty");
+    const lossPct = document.getElementById("loss-percent");
+    const totalField = document.getElementById("total-field");
+
+    function recalcTotal() {
+      const d = parseFloat(dimQty?.value || "");
+      const l = parseFloat(lossPct?.value || "10");
+
+      if (isNaN(d)) {
+        if (totalField) totalField.value = "";
+        return;
+      }
+      const loss = isNaN(l) ? 10 : l;
+      const total = d * (1 + (loss / 100));
+      if (totalField) totalField.value = total.toFixed(4);
+    }
+
+    function fillFromMaster(code) {
+      const key = (code || "").trim();
+      const hit = MASTER_MAP[key];
+
+      if (!hit) {
+        if (mpName) mpName.value = "";
+        if (mpMaker) mpMaker.value = "";
+        if (mpUnit) mpUnit.value = "";
+        if (mpHint) mpHint.textContent = "Not found in master list.";
+        return;
+      }
+
+      if (mpName) mpName.value = hit.mat_partname || "";
+      if (mpMaker) mpMaker.value = hit.mat_maker || "";
+      if (mpUnit) mpUnit.value = hit.unit || "";
+
+      if (mpHint) mpHint.textContent = "Found in master list ✅";
+    }
+
+    if (mpCode) {
+      mpCode.addEventListener("input", () => {
+        fillFromMaster(mpCode.value);
+      });
+      mpCode.addEventListener("change", () => {
+        fillFromMaster(mpCode.value);
+      });
+    }
+
+    if (dimQty) dimQty.addEventListener("input", recalcTotal);
+    if (lossPct) lossPct.addEventListener("input", recalcTotal);
+
+    recalcTotal();
   </script>
 
 </body>

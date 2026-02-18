@@ -63,6 +63,8 @@ class Material(models.Model):
         ("pc", "pc"),
         ("pcs", "pcs"),
         ("m", "m"),
+        ("g", "g"),
+        ("kg", "kg"),
     ]
 
     tep_code = models.ForeignKey(
@@ -82,14 +84,15 @@ class Material(models.Model):
 
     def __str__(self):
         return f"{self.mat_partname} ({self.mat_partcode})"
-    
 
-# New syntax for the material list model.
+
 class MaterialList(models.Model):
     UNIT_CHOICES = [
         ("pc", "pc"),
         ("pcs", "pcs"),
         ("m", "m"),
+        ("g", "g"),
+        ("kg", "kg"),
     ]
 
     mat_partcode = models.CharField(max_length=80, unique=True)
@@ -110,10 +113,11 @@ class CustomerCSV(models.Model):
 
 
 class EmployeeProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="employeeprofile")
     employee_id = models.CharField(max_length=30, unique=True)
     full_name = models.CharField(max_length=150)
     department = models.CharField(max_length=100)
 
     def __str__(self):
         return f"{self.employee_id} - {self.full_name}"
+    

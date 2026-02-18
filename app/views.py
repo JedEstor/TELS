@@ -1,6 +1,10 @@
+# views.py
+from django.views.decorators.cache import never_cache
+
 import json
 import csv
 import io
+import re
 from collections import defaultdict
 
 from django.core.paginator import Paginator
@@ -18,8 +22,11 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from .models import Customer, TEPCode, Material, MaterialList
-
 from .forms import EmployeeCreateForm
+
+from django.contrib.auth import logout
+from django.shortcuts import redirect
+from django.urls import reverse
 
 
 def is_admin(user):
@@ -57,6 +64,99 @@ def login_view(request):
             error = "Invalid Employee ID or password"
 
     return render(request, "login.html", {"error": error})
+
+
+def _normalize_space(s):
+    return re.sub(r"\s+", " ", (s or "").strip())
+
+
+def _unique_partname_for_customer(customer, base_name, part_code):
+    base_name = _normalize_space(base_name)
+    part_code = _normalize_space(part_code)
+
+    parts = customer.parts or []
+
+    for p in parts:
+        if isinstance(p, dict) and _normalize_space(p.get("Partcode")) == part_code:
+            existing = _normalize_space(p.get("Partname"))
+            return existing or base_name
+
+    existing_names = set()
+    for p in parts:
+        if isinstance(p, dict):
+            n = _normalize_space(p.get("Partname"))
+            if n:
+                existing_names.add(n.lower())
+
+    if base_name.lower() not in existing_names:
+        return base_name
+
+    i = 1
+    while True:
+        candidate = f"{base_name} {i}"
+        if candidate.lower() not in existing_names:
+            return candidate
+        i += 1
+
+
+def _ensure_customer_part_entry(customer, part_code, part_name):
+    part_code = _normalize_space(part_code)
+    part_name = _normalize_space(part_name) or part_code
+
+    parts = customer.parts or []
+
+    for p in parts:
+        if isinstance(p, dict) and _normalize_space(p.get("Partcode")) == part_code:
+            used = _normalize_space(p.get("Partname")) or part_name
+            return False, used
+
+    unique_name = _unique_partname_for_customer(customer, part_name, part_code)
+    parts.append({"Partcode": part_code, "Partname": unique_name})
+    customer.parts = parts
+    customer.save(update_fields=["parts"])
+    return True, unique_name
+
+
+def _allocate_material_name(tep, base_name: str, exclude_partcode: str = "") -> str:
+    """
+    Desired behavior per TEP:
+      - First insert:        BASE
+      - Second insert:       (rename existing BASE -> BASE 1), new -> BASE 2
+      - Third insert:        new -> BASE 3
+    """
+    base = (base_name or "").strip() or "UNKNOWN"
+    exclude_partcode = (exclude_partcode or "").strip()
+
+    qs = Material.objects.filter(
+        tep_code=tep,
+        mat_partname__iregex=rf"^{re.escape(base)}( \d+)?$"
+    )
+    if exclude_partcode:
+        qs = qs.exclude(mat_partcode=exclude_partcode)
+
+    existing_names = list(qs.values_list("mat_partname", flat=True))
+    if not existing_names:
+        return base
+
+    numbers = []
+    for n in existing_names:
+        m = re.match(rf"^{re.escape(base)}(?: (\d+))?$", (n or "").strip(), flags=re.IGNORECASE)
+        if m and m.group(1):
+            numbers.append(int(m.group(1)))
+
+    if not numbers:
+        existing_base = Material.objects.filter(tep_code=tep, mat_partname__iexact=base)
+        if exclude_partcode:
+            existing_base = existing_base.exclude(mat_partcode=exclude_partcode)
+
+        first = existing_base.order_by("id").first()
+        if first:
+            first.mat_partname = f"{base} 1"
+            first.save(update_fields=["mat_partname"])
+
+        return f"{base} 2"
+
+    return f"{base} {max(numbers) + 1}"
 
 
 def build_customer_table(q: str):
@@ -143,42 +243,121 @@ def build_customer_table(q: str):
 
     return customers
 
-
-from django.core.paginator import Paginator
-from django.db.models import Q
-from django.contrib import messages
-from django.contrib.auth.models import User
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.shortcuts import render, get_object_or_404, redirect
-from django.urls import reverse
-
-from .models import Customer, TEPCode, Material, MaterialList
-from .forms import EmployeeCreateForm  # we’ll reuse if you want later
-
-
-def is_admin(user):
-    return user.is_authenticated and user.is_superuser
-
-
+@never_cache
 @login_required
 @user_passes_test(is_admin)
 def admin_dashboard(request):
     tab = (request.GET.get("tab") or "customers").strip().lower()
 
-    # =========================
-    # POST ACTIONS (materials + users)
-    # =========================
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip()
 
-        # -------- MATERIALS actions --------
+        if action == "add_customer_full":
+            customer_name = _normalize_space(request.POST.get("customer_name"))
+            part_code = _normalize_space(request.POST.get("part_code"))
+            part_name = _normalize_space(request.POST.get("part_name"))
+            tep_code = _normalize_space(request.POST.get("tep_code"))
+
+            mat_partcode = _normalize_space(request.POST.get("mat_partcode"))
+            dim_qty_raw = (request.POST.get("dim_qty") or "").strip()
+            loss_raw = (request.POST.get("loss_percent") or "").strip()
+
+            if not customer_name:
+                messages.error(request, "Customer Name is required.")
+                return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+            if not part_code:
+                messages.error(request, "Partcode is required.")
+                return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+            if not part_name:
+                messages.error(request, "Partname is required.")
+                return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+            if not tep_code:
+                messages.error(request, "TEP Code is required.")
+                return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+            if not mat_partcode:
+                messages.error(request, "Material Partcode is required.")
+                return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+            if not dim_qty_raw:
+                messages.error(request, "Dim Qty is required.")
+                return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+            try:
+                dim_qty = float(dim_qty_raw)
+            except Exception:
+                messages.error(request, "Dim Qty must be a number.")
+                return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+            loss_percent = 10.0
+            if loss_raw != "":
+                try:
+                    loss_percent = float(loss_raw)
+                except Exception:
+                    messages.error(request, "Loss % must be a number.")
+                    return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+            master = MaterialList.objects.filter(mat_partcode=mat_partcode).first()
+            if not master:
+                messages.error(request, f"mat_partcode not found in master list: {mat_partcode}")
+                return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+            total = round(float(dim_qty) * (1 + (float(loss_percent) / 100.0)), 4)
+
+            try:
+                with transaction.atomic():
+                    customer, _ = Customer.objects.get_or_create(customer_name=customer_name)
+
+                    _ensure_customer_part_entry(customer, part_code, part_name)
+
+                    tep, _ = TEPCode.objects.get_or_create(
+                        customer=customer,
+                        part_code=part_code,
+                        tep_code=tep_code,
+                    )
+
+                    final_name = _allocate_material_name(
+                        tep=tep,
+                        base_name=master.mat_partname,
+                        exclude_partcode=mat_partcode
+                    )
+
+                    material, created = Material.objects.get_or_create(
+                        tep_code=tep,
+                        mat_partcode=mat_partcode,
+                        defaults={
+                            "mat_partname": final_name,
+                            "mat_maker": master.mat_maker,
+                            "unit": master.unit,
+                            "dim_qty": dim_qty,
+                            "loss_percent": loss_percent,
+                            "total": total,
+                        }
+                    )
+
+                    if not created:
+                        messages.error(request, f"Material already exists for TEP {tep_code} + {mat_partcode}.")
+                        return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
+                messages.success(
+                    request,
+                    f"Saved: {customer_name} | {part_code} | {tep_code} | {mat_partcode}"
+                )
+            except Exception as e:
+                messages.error(request, f"Failed to save full customer record: {e}")
+
+            return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
         if action == "add_material":
             mat_partcode = (request.POST.get("mat_partcode") or "").strip()
             mat_partname = (request.POST.get("mat_partname") or "").strip()
             mat_maker = (request.POST.get("mat_maker") or "").strip()
             unit = (request.POST.get("unit") or "").strip().lower()
 
-            allowed_units = {"pc", "pcs", "m"}
+            allowed_units = {"pc", "pcs", "m", "g", "kg"}
             if unit not in allowed_units:
                 unit = "pc"
 
@@ -228,7 +407,7 @@ def admin_dashboard(request):
             mat_maker = (request.POST.get("mat_maker") or "").strip()
             unit = (request.POST.get("unit") or "").strip().lower()
 
-            allowed_units = {"pc", "pcs", "m"}
+            allowed_units = {"pc", "pcs", "m", "g", "kg"}
             if unit not in allowed_units:
                 unit = "pc"
 
@@ -282,7 +461,6 @@ def admin_dashboard(request):
 
             return redirect(reverse("app:admin_dashboard") + "?tab=materials")
 
-        # -------- USERS actions --------
         if action == "add_employee":
             employee_id = (request.POST.get("employee_id") or "").strip()
             full_name = (request.POST.get("full_name") or "").strip()
@@ -299,23 +477,20 @@ def admin_dashboard(request):
 
             try:
                 user = User.objects.create_user(username=employee_id, password=password)
-                user.is_staff = True  # you can change this default if you want
+                user.is_staff = True
+                user.is_superuser = False
                 user.save()
 
-                # If you have EmployeeProfile model with OneToOne to User:
-                # user.employeeprofile.full_name = full_name ...
-                # But since your template uses u.employeeprofile, we create/update safely:
+                # create employeeprofile
                 try:
-                    prof = getattr(user, "employeeprofile", None)
-                    if prof is None:
-                        from .models import EmployeeProfile  # only if your model exists
-                        EmployeeProfile.objects.create(user=user, full_name=full_name, department=department)
-                    else:
-                        prof.full_name = full_name
-                        prof.department = department
-                        prof.save()
+                    from .models import EmployeeProfile
+                    EmployeeProfile.objects.create(
+                        user=user,
+                        employee_id=employee_id,
+                        full_name=full_name,
+                        department=department
+                    )
                 except Exception:
-                    # If your project doesn't have EmployeeProfile model, remove the employeeprofile usage in template
                     pass
 
                 messages.success(request, f"Employee created: {employee_id}")
@@ -339,7 +514,7 @@ def admin_dashboard(request):
                     return redirect(reverse("app:admin_dashboard") + "?tab=users")
 
                 u.is_active = not u.is_active
-                u.save()
+                u.save(update_fields=["is_active"])
                 messages.success(request, f"Updated user: {u.username} (active={u.is_active})")
             except User.DoesNotExist:
                 messages.error(request, "User not found.")
@@ -348,15 +523,80 @@ def admin_dashboard(request):
 
             return redirect(reverse("app:admin_dashboard") + "?tab=users")
 
-    # =========================
-    # CUSTOMERS TAB DATA
-    # =========================
+        if action == "toggle_user_admin":
+            user_id = (request.POST.get("user_id") or "").strip()
+            if not user_id:
+                messages.error(request, "Missing user ID.")
+                return redirect(reverse("app:admin_dashboard") + "?tab=users")
+
+            try:
+                u = User.objects.get(id=user_id)
+
+                if u.id == request.user.id:
+                    messages.error(request, "You can't change your own admin role here.")
+                    return redirect(reverse("app:admin_dashboard") + "?tab=users")
+
+                if u.is_superuser:
+                    u.is_superuser = False
+                    u.is_staff = True
+                    u.save(update_fields=["is_superuser", "is_staff"])
+                    messages.success(request, f"{u.username} is now Staff.")
+                else:
+                    u.is_superuser = True
+                    u.is_staff = True
+                    u.save(update_fields=["is_superuser", "is_staff"])
+                    messages.success(request, f"{u.username} is now Admin.")
+
+            except User.DoesNotExist:
+                messages.error(request, "User not found.")
+            except Exception as e:
+                messages.error(request, f"Failed to update role: {e}")
+
+            return redirect(reverse("app:admin_dashboard") + "?tab=users")
+
+        if action == "remove_staff":
+            user_id = (request.POST.get("user_id") or "").strip()
+            if not user_id:
+                messages.error(request, "Missing user ID.")
+                return redirect(reverse("app:admin_dashboard") + "?tab=users")
+
+            try:
+                u = User.objects.get(id=user_id)
+
+                if u.id == request.user.id:
+                    messages.error(request, "You can't delete your own account.")
+                    return redirect(reverse("app:admin_dashboard") + "?tab=users")
+
+                try:
+                    prof = getattr(u, "employeeprofile", None)
+                    if prof is not None:
+                        prof.delete()
+                except Exception:
+                    pass
+
+                username = u.username
+                u.delete()
+                messages.success(request, f"Deleted user: {username}")
+
+            except User.DoesNotExist:
+                messages.error(request, "User not found.")
+            except Exception as e:
+                messages.error(request, f"Failed to delete user: {e}")
+
+            return redirect(reverse("app:admin_dashboard") + "?tab=users")
+
     q = (request.GET.get("q") or "").strip()
     customers = build_customer_table(q)
 
-    # =========================
-    # MATERIALS TAB DATA (paginated)
-    # =========================
+    master_map = {
+        m["mat_partcode"]: {
+            "mat_partname": m["mat_partname"],
+            "mat_maker": m["mat_maker"],
+            "unit": m["unit"],
+        }
+        for m in MaterialList.objects.all().values("mat_partcode", "mat_partname", "mat_maker", "unit")
+    }
+
     mq = (request.GET.get("mq") or "").strip()
     materials_qs = MaterialList.objects.all().order_by("mat_partcode")
 
@@ -368,16 +608,13 @@ def admin_dashboard(request):
             Q(unit__icontains=mq)
         )
 
-    paginator = Paginator(materials_qs, 10)
+    paginator = Paginator(materials_qs, 8)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
     material_total = materials_qs.count()
     material_list = page_obj
 
-    # =========================
-    # USERS TAB DATA (paginated)
-    # =========================
     uq = (request.GET.get("uq") or "").strip()
     users_qs = User.objects.all().order_by("-is_superuser", "-is_staff", "username")
 
@@ -393,15 +630,11 @@ def admin_dashboard(request):
     users_page = users_paginator.get_page(upage)
     user_total = users_qs.count()
 
-    # =========================
-    # PANEL AJAX REQUEST
-    # =========================
     tep_id = request.GET.get("tep_id")
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
 
     if tep_id and is_ajax:
         tep = get_object_or_404(TEPCode.objects.select_related("customer"), id=tep_id)
-
         materials = Material.objects.filter(tep_code=tep).order_by("mat_partname")
 
         selected_part = (tep.part_code or "").strip()
@@ -421,9 +654,6 @@ def admin_dashboard(request):
             "tep_id": tep.id,
         })
 
-    # =========================
-    # PAGE CONTEXT
-    # =========================
     context = {
         "tab": tab,
 
@@ -432,24 +662,21 @@ def admin_dashboard(request):
         "materials_count": Material.objects.count(),
         "users_count": User.objects.count(),
 
-        # customers
         "customers": customers,
         "q": q,
 
-        # materials
         "mq": mq,
         "material_total": material_total,
         "material_list": material_list,
         "page_obj": page_obj,
 
-        # users
         "uq": uq,
         "user_total": user_total,
         "users_page": users_page,
+
+        "master_map_json": json.dumps(master_map, ensure_ascii=False),
     }
     return render(request, "admin/dashboard.html", context)
-
-
 
 @login_required
 @user_passes_test(is_admin)
@@ -467,7 +694,7 @@ def toggle_user_active(request, user_id):
         return redirect(reverse("app:admin_dashboard") + "?tab=users")
 
     user_obj.is_active = not user_obj.is_active
-    user_obj.save()
+    user_obj.save(update_fields=["is_active"])
 
     messages.success(request, f"Updated user: {user_obj.username} (active={user_obj.is_active})")
     return redirect(reverse("app:admin_dashboard") + "?tab=users")
@@ -519,7 +746,7 @@ def admin_csv_upload(request):
 
         master_inserted = 0
         master_updated = 0
-        ALLOWED_UNITS = {"pc", "pcs", "m"}
+        ALLOWED_UNITS = {"pc", "pcs", "m", "g", "kg"}
 
         def sget(row, *keys, default=""):
             for k in keys:
@@ -587,7 +814,7 @@ def customer_list(request):
     customers = build_customer_table(q)
     return render(request, "customer_list.html", {"customers": customers, "q": q})
 
-
+@never_cache
 @login_required
 def customer_detail(request, tep_id: int):
     tep = get_object_or_404(
@@ -617,3 +844,7 @@ def customer_detail(request, tep_id: int):
         "selected_part_name": selected_part_name,
         "tep_id": tep.id,
     })
+
+def logout_view(request):
+    logout(request)
+    return redirect(reverse("app:login"))  # 

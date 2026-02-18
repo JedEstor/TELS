@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/", api.urls),
     path("admin/", admin.site.urls),
     path("login/", views.login_view, name="login"),
+    path("logout/", views.logout_view, name="logout"),
 
     #bagong add
     path("panel/dashboard/", views.admin_dashboard, name="admin_dashboard"),

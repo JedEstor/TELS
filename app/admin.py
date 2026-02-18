@@ -157,7 +157,7 @@ class TEPCodeAdminForm(forms.ModelForm):
         if not isinstance(data, list):
             raise ValidationError("JSON must be an ARRAY (list) of materials.")
 
-        allowed_units = {"pc", "pcs", "m"}
+        allowed_units = {"pc", "pcs", "m", "g", "kg"}
         required = ["mat_partcode", "mat_partname", "mat_maker", "unit", "dim_qty", "total"]
 
         for i, item in enumerate(data):
@@ -220,7 +220,6 @@ class TEPCodeAdmin(admin.ModelAdmin):
                 total=item["total"],
             )
 
-
 @admin.register(Material)
 class MaterialAdmin(admin.ModelAdmin):
     list_display = (
@@ -253,7 +252,6 @@ class MaterialAdmin(admin.ModelAdmin):
     def customer_name(self, obj: Material):
         return obj.tep_code.customer.customer_name
     customer_name.short_description = "Customer"
-
 
 @admin.register(MaterialList)
 class MaterialListAdmin(admin.ModelAdmin):

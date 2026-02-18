@@ -7,7 +7,6 @@ class CustomerPart(Schema):
     Partname: str
 
 
-#new syntax for the MaterialIn schema
 class MaterialIn(Schema):
     mat_partcode: str
     dim_qty: float

@@ -31,7 +31,9 @@
             <th class="p-3 text-left">Part Code</th>
             <th class="p-3 text-left">Name</th>
             <th class="p-3 text-left">Maker</th>
+            <th class="p-3 text-left">Dim/Qty</th>
             <th class="p-3 text-left">Unit</th>
+            <th class="p-3 text-left">Loss %</th>
             <th class="p-3 text-right">Total</th>
           </tr>
         </thead>
@@ -41,7 +43,9 @@
             <td class="p-3">{{ m.mat_partcode }}</td>
             <td class="p-3">{{ m.mat_partname }}</td>
             <td class="p-3">{{ m.mat_maker|default:"—" }}</td>
+            <td class="p-3">{{ m.dim_qty }}</td>
             <td class="p-3">{{ m.unit|default:"—" }}</td>
+            <td class="p-3">{{ m.loss_percent }}</td>
             <td class="p-3 text-right">{{ m.total }}</td>
           </tr>
           {% empty %}

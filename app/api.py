@@ -8,12 +8,7 @@ from django.db.models import Prefetch
 import csv, io, re
 from .models import Customer, TEPCode, Material, CustomerCSV, MaterialList
 #new, naglagay nung MaterialList sa itaas na import
-from .schemas import (
-    CustomerIn, CustomerOut, CustomerFullOut,
-    TEPCodeIn, TEPCodeOut,
-    MaterialIn, MaterialOut, MaterialListIn
-
-)
+from .schemas import (CustomerIn, CustomerOut, CustomerFullOut, TEPCodeIn, TEPCodeOut, MaterialIn, MaterialOut, MaterialListIn)
 
 
 api = NinjaAPI(title="Sales API")
@@ -69,7 +64,6 @@ def _ensure_customer_part_entry(customer, part_code, part_name):
 
     parts = customer.parts or []
 
-    # already exists?
     for p in parts:
         if isinstance(p, dict) and _normalize_space(p.get("Partcode")) == part_code:
             used = _normalize_space(p.get("Partname")) or part_name
@@ -483,7 +477,7 @@ def upload_csv(request, file: UploadedFile = File(...)):
         master_inserted = 0
         master_updated = 0
 
-        ALLOWED_UNITS = {"pc", "pcs", "m"}
+        ALLOWED_UNITS = {"pc", "pcs", "m", "g", "kg"}
 
         def fnum(x, default=0.0):
             try:
