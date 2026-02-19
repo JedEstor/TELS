@@ -845,6 +845,83 @@ def customer_detail(request, tep_id: int):
         "tep_id": tep.id,
     })
 
+@login_required
+@user_passes_test(is_admin)  
+def add_material_to_tep(request):
+    if request.method != "POST":
+        return redirect("app:admin_dashboard")
+
+    tep_id = (request.POST.get("tep_id") or "").strip()
+    mat_partcode = _normalize_space(request.POST.get("mat_partcode"))
+    dim_qty_raw = (request.POST.get("dim_qty") or "").strip()
+    loss_raw = (request.POST.get("loss_percent") or "").strip()
+
+    if not tep_id:
+        messages.error(request, "Missing TEP id.")
+        return redirect("app:admin_dashboard")
+
+    if not mat_partcode:
+        messages.error(request, "Material Part Code is required.")
+        return redirect("app:admin_dashboard")
+
+    if not dim_qty_raw:
+        messages.error(request, "Dim/Qty is required.")
+        return redirect("app:admin_dashboard")
+
+    try:
+        dim_qty = float(dim_qty_raw)
+    except Exception:
+        messages.error(request, "Dim/Qty must be a number.")
+        return redirect("app:admin_dashboard")
+
+    loss_percent = 10.0
+    if loss_raw != "":
+        try:
+            loss_percent = float(loss_raw)
+        except Exception:
+            messages.error(request, "Loss % must be a number.")
+            return redirect("app:admin_dashboard")
+
+    tep = get_object_or_404(TEPCode, id=tep_id)
+
+    master = MaterialList.objects.filter(mat_partcode=mat_partcode).first()
+    if not master:
+        messages.error(request, f"mat_partcode not found in master list: {mat_partcode}")
+        return redirect("app:admin_dashboard")
+
+    total = round(float(dim_qty) * (1 + (float(loss_percent) / 100.0)), 4)
+
+    try:
+        with transaction.atomic():
+            final_name = _allocate_material_name(
+                tep=tep,
+                base_name=master.mat_partname,
+                exclude_partcode=mat_partcode
+            )
+
+            material, created = Material.objects.get_or_create(
+                tep_code=tep,
+                mat_partcode=mat_partcode,
+                defaults={
+                    "mat_partname": final_name,
+                    "mat_maker": master.mat_maker,
+                    "unit": master.unit,
+                    "dim_qty": dim_qty,
+                    "loss_percent": loss_percent,
+                    "total": total,
+                }
+            )
+
+            if not created:
+                messages.error(request, f"Material already exists for this TEP + {mat_partcode}.")
+            else:
+                messages.success(request, f"Added material: {mat_partcode}")
+
+    except Exception as e:
+        messages.error(request, f"Failed to add material: {e}")
+
+    return redirect(reverse("app:admin_dashboard") + "?tab=customers")
+
 def logout_view(request):
     logout(request)
     return redirect(reverse("app:login"))  # 

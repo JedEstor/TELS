@@ -1,3 +1,4 @@
+
 #from django.db import models
 
 # Create your models here.
@@ -9,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 
 class Customer(models.Model):
-    customer_name = models.CharField(max_length=120)
+    customer_name = models.CharField(max_length=120, unique=True)
 
     parts = models.JSONField(default=list, blank=True)
 
@@ -85,7 +86,6 @@ class Material(models.Model):
     def __str__(self):
         return f"{self.mat_partname} ({self.mat_partcode})"
 
-
 class MaterialList(models.Model):
     UNIT_CHOICES = [
         ("pc", "pc"),
@@ -120,4 +120,3 @@ class EmployeeProfile(models.Model):
 
     def __str__(self):
         return f"{self.employee_id} - {self.full_name}"
-    

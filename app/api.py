@@ -318,6 +318,7 @@ def list_materials_by_tep_code(request, tep_code: str):
     return tep.materials.all().order_by("mat_partname")
 
 
+
 @api.post("/tep-codes/by-code/{tep_code}/materials", response=MaterialOut, tags=["MATERIAL"])
 def create_material_by_tep_code(
     request,
@@ -366,6 +367,9 @@ def create_material_by_tep_code(
             base_name=master.mat_partname,
             exclude_partcode=mat_partcode
         )
+
+    with transaction.atomic():
+        final_name = _allocate_material_name
 
     material, created = Material.objects.get_or_create(
         tep_code=tep,
