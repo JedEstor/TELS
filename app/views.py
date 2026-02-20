@@ -924,4 +924,4 @@ def add_material_to_tep(request):
 
 def logout_view(request):
     logout(request)
-    return redirect(reverse("app:login"))  # 
+    return redirect(reverse("app:login"))  
