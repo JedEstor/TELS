@@ -3,7 +3,7 @@ from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 
-from .models import Customer, TEPCode, Material, MaterialList
+from .models import Customer, TEPCode, Material, MaterialList, Forecast
 
 
 class TEPCodeInline(admin.TabularInline):
@@ -258,3 +258,172 @@ class MaterialListAdmin(admin.ModelAdmin):
     list_display = ("mat_partcode", "mat_partname", "mat_maker", "unit")
     search_fields = ("mat_partcode", "mat_partname", "mat_maker")
     list_filter = ("mat_maker",)
+
+
+def _date_to_month_name(val):
+    """Convert date string (Jan-2026, JAN, 1, January) to full month name."""
+    if not val:
+        return ""
+    s = str(val).strip()
+    months = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+    abbr = ["jan", "feb", "mar", "apr", "may", "jun",
+            "jul", "aug", "sep", "oct", "nov", "dec"]
+    s_lower = s.lower()
+    for i, m in enumerate(abbr):
+        if s_lower.startswith(m) or s_lower == m:
+            return months[i]
+    try:
+        n = int(s.split("-")[0] if "-" in s else s.split("/")[0] if "/" in s else s)
+        if 1 <= n <= 12:
+            return months[n - 1]
+    except (ValueError, IndexError):
+        pass
+    return s
+
+
+class ForecastAdminForm(forms.ModelForm):
+    customer_name = forms.CharField(
+        required=False,
+        label="Customer Name",
+        help_text="Optional. If provided, a Customer will be created automatically if it does not exist.",
+    )
+    monthly_forecasts_json = forms.CharField(
+        required=False,
+        label="Monthly forecasts",
+        widget=forms.Textarea(attrs={"rows": 10, "style": "font-family: monospace;"}),
+        help_text=(
+            'List of {"date", "unit_price", "quantity"} per month, '
+            'e.g. [{"date": "JANUARY", "unit_price": 0.04, "quantity": 10000.0}]'
+        ),
+    )
+
+    class Meta:
+        model = Forecast
+        fields = ("customer", "part_number", "part_name")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Hide the raw FK field; we use customer_name instead.
+        self.fields["customer"].widget = forms.HiddenInput()
+
+        if self.instance and self.instance.pk and self.instance.customer:
+            self.fields["customer_name"].initial = self.instance.customer.customer_name
+
+        if self.instance and self.instance.pk:
+            initial_data = self.instance.monthly_forecasts or []
+        else:
+            initial_data = [
+                {"date": "JANUARY", "unit_price": 0.04, "quantity": 10000.0}
+            ]
+
+        self.fields["monthly_forecasts_json"].initial = json.dumps(
+            initial_data,
+            indent=2,
+            ensure_ascii=False,
+        )
+
+    def clean_monthly_forecasts_json(self):
+        raw = (self.cleaned_data.get("monthly_forecasts_json") or "").strip()
+        if raw == "":
+            return []
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise ValidationError(f"Invalid JSON: {e}")
+
+        if not isinstance(data, list):
+            raise ValidationError("Monthly forecasts must be a JSON ARRAY (list).")
+
+        for i, item in enumerate(data):
+            if not isinstance(item, dict):
+                raise ValidationError(f"Item #{i+1} must be an object/dict.")
+
+            missing = [k for k in ("date", "unit_price", "quantity") if k not in item]
+            if missing:
+                raise ValidationError(
+                    f"Item #{i+1} missing keys: {', '.join(missing)}"
+                )
+
+            item["date"] = str(item.get("date", "")).strip()
+            try:
+                item["unit_price"] = float(item.get("unit_price", 0) or 0)
+                item["quantity"] = float(item.get("quantity", 0) or 0)
+            except (TypeError, ValueError):
+                raise ValidationError(
+                    f"Item #{i+1}: unit_price and quantity must be numeric."
+                )
+
+        return data
+
+
+@admin.register(Forecast)
+class ForecastAdmin(admin.ModelAdmin):
+    form = ForecastAdminForm
+    list_display = (
+        "part_number",
+        "part_name",
+        "customer",
+        "months_display",
+        "unit_price_display",
+        "quantity_display",
+        "total_quantity_display",
+        "total_amount_display",
+    )
+    search_fields = ("part_number", "part_name", "customer__customer_name")
+    list_filter = ("customer",)
+    list_select_related = ("customer",)
+
+    fields = (
+        "customer_name",
+        "part_number",
+        "part_name",
+        "monthly_forecasts_json",
+    )
+
+    def months_display(self, obj):
+        items = obj.monthly_forecasts or []
+        names = []
+        seen = set()
+        for m in items:
+            if isinstance(m, dict):
+                d = m.get("date", "")
+                name = _date_to_month_name(d)
+                if name and name not in seen:
+                    seen.add(name)
+                    names.append(name)
+        return ", ".join(names) if names else "—"
+    months_display.short_description = "Months"
+
+    def unit_price_display(self, obj):
+        return obj.base_unit_price
+    unit_price_display.short_description = "Unit price"
+
+    def quantity_display(self, obj):
+        return obj.latest_quantity
+    quantity_display.short_description = "Quantity"
+
+    def total_quantity_display(self, obj):
+        return obj.total_quantity
+    total_quantity_display.short_description = "Total quantity"
+
+    def total_amount_display(self, obj):
+        return obj.total_amount
+    total_amount_display.short_description = "Total amount"
+
+    def save_model(self, request, obj, form, change):
+        # Resolve / create customer from customer_name
+        cname = (form.cleaned_data.get("customer_name") or "").strip()
+        if cname:
+            customer, _ = Customer.objects.get_or_create(customer_name=cname)
+        else:
+            customer = None
+
+        obj.customer = customer
+        obj.monthly_forecasts = form.cleaned_data.get("monthly_forecasts_json", [])
+        obj.save()
+    
