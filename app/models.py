@@ -1,4 +1,5 @@
 
+
 #from django.db import models
 
 # Create your models here.
@@ -120,3 +121,127 @@ class EmployeeProfile(models.Model):
 
     def __str__(self):
         return f"{self.employee_id} - {self.full_name}"
+
+
+class Forecast(models.Model):
+    """
+    Forecast for a part: part_number, part_name, and monthly forecasts.
+    Optionally linked to a Customer.
+    """
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name="forecasts",
+        null=True,
+        blank=True,
+    )
+    part_number = models.CharField(max_length=80)
+    part_name = models.CharField(max_length=200)
+    monthly_forecasts = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of {date, unit_price, quantity} per month, e.g. [{'date': 'Jan-2026', 'unit_price': 0.13, 'quantity': 1000}]",
+    )
+    previous_forecasts = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Previous forecast values per month using the same format as monthly_forecasts.",
+    )
+    actual_delivered = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Actual delivered quantities per month using the same format as monthly_forecasts.",
+    )
+
+    class Meta:
+        ordering = ["part_number"]
+
+    def __str__(self):
+        return f"{self.part_number} - {self.part_name}"
+
+    @property
+    def monthly_count(self):
+        return len(self.monthly_forecasts or [])
+
+    @property
+    def months_display(self):
+        """Return month names (e.g. January, February) from monthly_forecasts dates."""
+        months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ]
+        abbr = ["jan", "feb", "mar", "apr", "may", "jun",
+                "jul", "aug", "sep", "oct", "nov", "dec"]
+        items = self.monthly_forecasts or []
+        names = []
+        seen = set()
+        for m in items:
+            if isinstance(m, dict):
+                d = str(m.get("date", "")).strip()
+                if not d:
+                    continue
+                s_lower = d.lower()
+                found = None
+                for i, a in enumerate(abbr):
+                    if s_lower.startswith(a) or s_lower == a:
+                        found = months[i]
+                        break
+                if found is None:
+                    try:
+                        n = int(d.split("-")[0] if "-" in d else d.split("/")[0] if "/" in d else d)
+                        found = months[n - 1] if 1 <= n <= 12 else d
+                    except (ValueError, IndexError):
+                        found = d
+                if found and found not in seen:
+                    seen.add(found)
+                    names.append(found)
+        return ", ".join(names) if names else "—"
+
+    @property
+    def base_unit_price(self) -> float:
+        """Unit price (assumes same price for all months, uses first entry)."""
+        for m in (self.monthly_forecasts or []):
+            if isinstance(m, dict):
+                try:
+                    return float(m.get("unit_price", 0) or 0)
+                except (TypeError, ValueError):
+                    continue
+        return 0.0
+
+    @property
+    def latest_quantity(self) -> float:
+        """Quantity from the last monthly entry (most recent month in the list)."""
+        items = [m for m in (self.monthly_forecasts or []) if isinstance(m, dict)]
+        if not items:
+            return 0.0
+        try:
+            return float(items[-1].get("quantity", 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @property
+    def total_quantity(self) -> float:
+        """Sum of quantities across all months."""
+        total = 0.0
+        for m in (self.monthly_forecasts or []):
+            if isinstance(m, dict):
+                try:
+                    total += float(m.get("quantity", 0) or 0)
+                except (TypeError, ValueError):
+                    continue
+        return total
+
+    @property
+    def total_amount(self) -> float:
+        """Sum over all months of (unit_price * quantity)."""
+        total = 0.0
+        for m in (self.monthly_forecasts or []):
+            if isinstance(m, dict):
+                try:
+                    price = float(m.get("unit_price", 0) or 0)
+                    qty = float(m.get("quantity", 0) or 0)
+                    total += price * qty
+                except (TypeError, ValueError):
+                    continue
+        return total
+
