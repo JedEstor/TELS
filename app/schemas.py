@@ -74,28 +74,21 @@ class MaterialListOut(Schema):
 
 # Forecast schemas
 class MonthlyForecastIn(Schema):
-    date: str  # e.g. "Jan-2026"
+    date: str                # e.g. "Jan-2026"
     unit_price: float = 0
     quantity: float = 0
 
-
-class ForecastIn(Schema):
-    """
-    Main forecast payload.
-    customer_name is first so it appears first in the OpenAPI docs.
-    """
-    customer_name: Optional[str] = None
+class ForecastBatchPartIn(Schema):
     part_number: str
     part_name: str
-    monthly_forecasts: Optional[List[MonthlyForecastIn]] = None
+    monthly_forecasts: List[MonthlyForecastIn]
+
+class ForecastBatchIn(Schema):
+    customer_name: str
+    parts: List[ForecastBatchPartIn]
 
 
-class ForecastHistoryIn(Schema):
-    """
-    Payload for Previous Forecast / Actual Delivered.
-    Same structure as creating a forecast, but used to populate
-    the JSON history fields (previous_forecasts, actual_delivered).
-    """
+class ForecastIn(Schema):
     customer_name: Optional[str] = None
     part_number: str
     part_name: str
@@ -114,4 +107,6 @@ class ForecastOut(Schema):
     id: int
     part_number: str
     part_name: str
-    monthly_forecasts: List[dict]  # with Total_Quantity and Total_Amount as "auto"
+    monthly_forecasts: List[dict] 
+
+
