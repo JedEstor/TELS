@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <title>Admin Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Add Flatpickr for date picking -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
 
   <style>
     .ui-select {
@@ -91,6 +95,68 @@
     .sidebar:hover {
       box-shadow: 4px 0 18px rgba(0,0,0,0.35);
     }
+
+    /* Forecast table styles - WITH borders */
+    .forecast-table {
+      font-size: 0.75rem;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .forecast-table th {
+      background-color: #f8fafc;
+      font-weight: 600;
+      white-space: nowrap;
+      padding: 0.75rem 0.5rem;
+      border: 1px solid #e2e8f0;
+    }
+    .forecast-table td {
+      white-space: nowrap;
+      padding: 0.75rem 0.5rem;
+      border: 1px solid #e2e8f0;
+    }
+    .forecast-table tr:hover {
+      background-color: #f8fafc;
+    }
+    .month-cell {
+      min-width: 60px;
+      text-align: right;
+    }
+    .total-row {
+      background-color: #f1f5f9;
+      font-weight: 500;
+    }
+    .amount-row {
+      background-color: #f8fafc;
+      font-weight: 500;
+    }
+    /* Month row styles */
+    .month-row {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      padding: 0.75rem;
+      background-color: #f8fafc;
+      border-radius: 0.75rem;
+    }
+    .month-row:hover {
+      background-color: #f1f5f9;
+    }
+    .month-input {
+      flex: 2;
+    }
+    .price-input, .qty-input {
+      flex: 1;
+    }
+    .remove-month {
+      flex: 0;
+      color: #ef4444;
+      cursor: pointer;
+      padding: 0.25rem;
+    }
+    .remove-month:hover {
+      color: #dc2626;
+    }
   </style>
 </head>
 
@@ -158,18 +224,19 @@
           </div>
         </a>
 
-        <a href="?tab=forecast&fq={{ fq|urlencode }}&from_month={{ forecast_from_month|urlencode }}&to_month={{ forecast_to_month|urlencode }}"
+        <!-- Forecasts Panel Link -->
+        <a href="?tab=forecasts"
            class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition
-                  {% if tab == 'forecast' %}bg-white/10{% endif %}">
+                  {% if tab == 'forecasts' %}bg-white/10{% endif %}">
           <span class="inline-flex h-9 w-9 rounded-lg bg-white/5 items-center justify-center border border-white/10">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </span>
           <div class="nav-text">
-            <div class="font-medium">Forecast</div>
-            <div class="text-xs text-slate-200/80">Manage forecasts</div>
+            <div class="font-medium">Forecasts</div>
+            <div class="text-xs text-slate-200/80">Monthly projections & actuals</div>
           </div>
         </a>
 
@@ -407,55 +474,6 @@
                   <input type="text" name="tep_code" required
                          class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
                                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                </div>
-
-                <div>
-                  <label class="text-sm font-medium text-slate-700">Material Partcode (from master list)</label>
-                  <input type="text" name="mat_partcode" id="mat-partcode-input" required
-                         placeholder="e.g. 223S 0.19x19 BLACK"
-                         class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
-                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <div class="text-xs text-slate-500 mt-1" id="mat-master-hint"></div>
-                </div>
-
-                <div>
-                  <label class="text-sm font-medium text-slate-700">Material Partname</label>
-                  <input type="text" name="mat_partname" id="mat-partname" readonly
-                         class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
-                </div>
-
-                <div>
-                  <label class="text-sm font-medium text-slate-700">Maker</label>
-                  <input type="text" name="mat_maker" id="mat-maker" readonly
-                         class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
-                </div>
-
-                <div>
-                  <label class="text-sm font-medium text-slate-700">Unit</label>
-                  <input type="text" name="unit" id="mat-unit" readonly
-                         class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="text-sm font-medium text-slate-700">Dim/Qty</label>
-                    <input type="number" step="0.0001" name="dim_qty" id="dim-qty" required
-                           class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
-                                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  </div>
-                  <div>
-                    <label class="text-sm font-medium text-slate-700">Loss %</label>
-                    <input type="number" step="0.01" name="loss_percent" id="loss-percent" value="10"
-                           class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
-                                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <div class="text-xs text-slate-500 mt-1">Default 10%</div>
-                  </div>
-                </div>
-
-                <div>
-                  <label class="text-sm font-medium text-slate-700">Total</label>
-                  <input type="text" name="total" id="total-field" readonly
-                         class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
                 </div>
 
                 <hr class="my-2">
@@ -899,188 +917,392 @@
 
         {% endif %}
 
-        {% if tab == "forecast" %}
+        <!-- ============================================================================
+             FORECASTS PANEL - WITH BORDERS and CONNECTED TO API
+        ========================================================================= -->
+        {% if tab == "forecasts" %}
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="space-y-6">
+          <!-- Header with Actions -->
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 class="text-2xl font-bold text-slate-900">Forecast Management</h2>
+              <p class="text-sm text-slate-500">FORECAST / 2025</p>
+            </div>
+            <div class="flex gap-2">
+              <!-- Customer Dropdown Button -->
+              <div class="relative" id="customerDropdownContainer">
+                <button id="customerDropdownBtn" 
+                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center gap-2">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                  </svg>
+                  {% if selected_customer %}{{ selected_customer }}{% else %}Customers{% endif %}
+                  <svg class="w-4 h-4 transition-transform duration-200" id="dropdownArrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </button>
+                <!-- Dropdown Menu -->
+                <div id="customerDropdownMenu" class="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-slate-200 hidden z-50">
+                  <div class="p-2 border-b border-slate-200">
+                    <input type="text" id="customerSearch" placeholder="Search customers..." 
+                           class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  </div>
+                  <div class="max-h-60 overflow-y-auto">
+                    <a href="?tab=forecasts" class="block px-4 py-2 text-sm hover:bg-slate-50 {% if not selected_customer %}bg-blue-50 text-blue-600{% endif %}">
+                      All Customers
+                    </a>
+                    {% for customer in all_customers %}
+                    <a href="?tab=forecasts&customer_name={{ customer.customer_name|urlencode }}" 
+                       class="block px-4 py-2 text-sm hover:bg-slate-50 {% if selected_customer == customer.customer_name %}bg-blue-50 text-blue-600{% endif %}">
+                      {{ customer.customer_name }}
+                    </a>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+              
+              <button id="toggleAddForecastBtn" 
+                      class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Add New Forecast
+              </button>
+              <button class="px-4 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-white">
+                Export to Excel
+              </button>
+            </div>
+          </div>
 
-          <div class="lg:col-span-8 space-y-6">
-            <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <!-- Add Forecast Form (Hidden by default) - Connected to API -->
+          <div id="addForecastForm" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 hidden">
+            <h3 class="text-lg font-semibold text-slate-900 mb-4">Create New Forecast</h3>
+            <form method="post" action="{% url 'app:admin_dashboard' %}" class="space-y-4" id="forecastCreateForm">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="add_forecast_grouped">
+              <input type="hidden" name="tab" value="forecasts">
+              
+              <!-- Customer Name (required) -->
+              <div>
+                <label class="text-sm font-medium text-slate-700">Customer Name <span class="text-red-500">*</span></label>
+                <div class="flex gap-2">
+                  <input type="text" name="customer_name" id="forecast_customer_name" required
+                         class="flex-1 mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                         placeholder="Enter customer name" value="{{ selected_customer|default:'' }}">
+                  <button type="button" id="checkCustomerBtn" 
+                          class="mt-1 px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700">
+                    Check
+                  </button>
+                </div>
+                <div id="customerStatus" class="text-xs mt-1"></div>
+              </div>
 
-              <div class="px-5 py-4 border-b border-slate-200 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div class="space-y-2">
-                  <h2 class="text-lg font-semibold text-slate-900">Forecast Records</h2>
-                  <div class="flex flex-wrap gap-2">
-                    <button type="button" id="open-previous-forecast"
-                            class="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700 hover:bg-slate-100">
-                      Previous Forecast
+              <!-- Parts Container -->
+              <div id="partsContainer" class="space-y-4 pt-4">
+                <div class="flex items-center justify-between">
+                  <h4 class="font-medium text-slate-900">Parts</h4>
+                  <button type="button" id="addPartBtn" 
+                          class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Add Part
+                  </button>
+                </div>
+
+                <!-- Part Template (will be cloned) -->
+                <div id="partTemplate" class="part-item border border-slate-200 rounded-xl p-4 space-y-3 hidden">
+                  <div class="flex justify-between items-center">
+                    <h5 class="font-medium text-slate-700">Part</h5>
+                    <button type="button" class="remove-part text-rose-500 hover:text-rose-700">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      </svg>
                     </button>
-                    <button type="button" id="open-actual-delivered"
-                            class="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700 hover:bg-slate-100">
-                      Actual Delivered
-                    </button>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="text-xs text-slate-500">Part Number</label>
+                      <input type="text" name="parts[0][part_number]" class="part-number-input w-full px-3 py-2 rounded-xl border border-slate-300" required>
+                    </div>
+                    <div>
+                      <label class="text-xs text-slate-500">Part Name</label>
+                      <input type="text" name="parts[0][part_name]" class="part-name-input w-full px-3 py-2 rounded-xl border border-slate-300" required>
+                    </div>
+                  </div>
+                  
+                  <!-- Monthly Forecasts for this Part -->
+                  <div class="part-monthly-forecasts space-y-2">
+                    <div class="flex items-center justify-between">
+                      <label class="text-xs text-slate-500">Monthly Forecasts</label>
+                      <button type="button" class="add-month-to-part text-xs text-blue-600 hover:text-blue-800">
+                        + Add Month
+                      </button>
+                    </div>
+                    
+                    <!-- Month row template for this part -->
+                    <div class="month-row-template hidden">
+                      <div class="month-row flex gap-2 items-end mb-2">
+                        <div class="flex-1">
+                          <input type="text" name="parts[0][monthly_forecasts][0][date]" 
+                                 class="datepicker w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" 
+                                 placeholder="Select month">
+                        </div>
+                        <div class="flex-1">
+                          <input type="number" name="parts[0][monthly_forecasts][0][unit_price]" step="0.0001"
+                                 class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" 
+                                 placeholder="Unit price">
+                        </div>
+                        <div class="flex-1">
+                          <input type="number" name="parts[0][monthly_forecasts][0][quantity]" step="0.01"
+                                 class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" 
+                                 placeholder="Quantity">
+                        </div>
+                        <button type="button" class="remove-month text-rose-500 hover:text-rose-700 p-1">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <!-- Month rows container -->
+                    <div class="part-month-rows space-y-2"></div>
                   </div>
                 </div>
 
-                <form method="get" class="flex flex-wrap items-center gap-2">
-                  <input type="hidden" name="tab" value="forecast">
-                  <input
-                    type="text"
-                    name="fq"
-                    value="{{ fq|default:'' }}"
-                    placeholder="Search part_number / part_name / customer..."
-                    class="h-10 w-44 lg:w-64 max-w-full px-3 rounded-xl bg-white border border-slate-300 text-slate-900
-                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <select
-                    name="from_month"
-                    class="h-10 px-3 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 ui-select"
-                  >
-                    <option value="">From month</option>
-                    {% for m in forecast_month_choices %}
-                      <option value="{{ m }}" {% if forecast_from_month == m %}selected{% endif %}>{{ m }}</option>
-                    {% endfor %}
-                  </select>
-                  <select
-                    name="to_month"
-                    class="h-10 px-3 rounded-xl bg-white border border-slate-300 text-sm text-slate-900 ui-select"
-                  >
-                    <option value="">To month</option>
-                    {% for m in forecast_month_choices %}
-                      <option value="{{ m }}" {% if forecast_to_month == m %}selected{% endif %}>{{ m }}</option>
-                    {% endfor %}
-                  </select>
-                  <button class="h-10 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm" type="submit">
-                    Search / Filter
-                  </button>
-                </form>
+                <!-- Parts will be added here -->
+                <div id="partsList" class="space-y-3"></div>
               </div>
 
-              <div class="px-5 py-3 border-b border-slate-200 text-sm text-slate-600 flex items-center justify-between gap-4 flex-wrap">
-                <div class="space-y-1">
-                  <div>Total: <span class="font-semibold text-slate-900">{{ forecasts_total }}</span></div>
-                  {% if forecast_selected_range_label %}
-                    <div class="text-xs text-slate-500">
-                      Selected months:
-                      <span class="font-semibold text-slate-900">{{ forecast_selected_range_label }}</span>
-                      {% if forecast_selected_total_qty is not None %}
-                        · Total Quantity:
-                        <span class="font-semibold text-slate-900">
-                          {{ forecast_selected_total_qty|floatformat:2 }}
-                        </span>
-                      {% endif %}
-                      {% if forecast_selected_total_amount is not None %}
-                        · Total Amount:
-                        <span class="font-semibold text-slate-900">
-                          {{ forecast_selected_total_amount|floatformat:2 }}
-                        </span>
-                      {% endif %}
-                    </div>
-                  {% endif %}
-                </div>
-                <a href="{% url 'admin:app_forecast_add' %}"
-                   class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm">
-                  Add Forecast (Admin)
-                </a>
+              <div class="flex justify-end gap-3 pt-4">
+                <button type="button" id="cancelAddForecast" class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white">
+                  Create Forecast
+                </button>
               </div>
-
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                  <thead class="bg-slate-50 text-slate-700">
-                    <tr>
-                      <th class="px-4 py-3 text-left">Part Number</th>
-                      <th class="px-4 py-3 text-left">Part Name</th>
-                      <th class="px-4 py-3 text-left">Customer</th>
-                      <th class="px-4 py-3 text-left">Months</th>
-                      <th class="px-4 py-3 text-right">Unit Price</th>
-                      <th class="px-4 py-3 text-right">Quantity</th>
-                      <th class="px-4 py-3 text-right">Total Quantity</th>
-                      <th class="px-4 py-3 text-right">Total Amount</th>
-                      <th class="px-4 py-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {% for f in forecasts_list %}
-                    <tr class="border-t border-slate-200 hover:bg-slate-50">
-                      <td class="px-4 py-3 font-medium">{{ f.part_number }}</td>
-                      <td class="px-4 py-3">{{ f.part_name }}</td>
-                      <td class="px-4 py-3">
-                        {% if f.customer %}
-                          {{ f.customer.customer_name }}
-                        {% else %}
-                          <span class="text-slate-400 italic">—</span>
-                        {% endif %}
-                      </td>
-                      <td class="px-4 py-3">{{ f.months_display }}</td>
-                      <td class="px-4 py-3 text-right">{{ f.base_unit_price|floatformat:4 }}</td>
-                      <td class="px-4 py-3 text-right">{{ f.latest_quantity|floatformat:2 }}</td>
-                      <td class="px-4 py-3 text-right">{{ f.total_quantity|floatformat:2 }}</td>
-                      <td class="px-4 py-3 text-right">{{ f.total_amount|floatformat:2 }}</td>
-                      <td class="px-4 py-3 text-right">
-                        <button type="button"
-                                class="edit-forecast px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white"
-                                data-id="{{ f.id }}"
-                                data-part-number="{{ f.part_number|escapejs }}"
-                                data-part-name="{{ f.part_name|escapejs }}"
-                                data-customer-id="{{ f.customer_id|default:'' }}">
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                      <td colspan="9" class="px-4 py-10 text-center text-slate-500">
-                        No forecasts found. <a href="{% url 'admin:app_forecast_add' %}" class="text-blue-600 hover:underline">Add one</a> or use the <a href="/api/docs" class="text-blue-600 hover:underline">API</a>.
-                      </td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-
-            </div>
-
+            </form>
           </div>
 
-          <div class="lg:col-span-4">
-            <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 lg:sticky lg:top-6">
-              <div>
-                <h3 class="text-base font-semibold text-slate-900">Forecast API</h3>
-                <p class="mt-2 text-sm text-slate-600">
-                  Manage forecasts via REST API (POST, GET, PUT, DELETE) at <code class="text-xs bg-slate-100 px-1 rounded">/api/forecasts</code>
-                </p>
-                <div class="mt-3">
-                  <a href="/api/docs" target="_blank"
-                     class="inline-block px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-sm">
-                    API Documentation →
-                  </a>
-                </div>
-                <div class="mt-3">
-                  <a href="{% url 'admin:app_forecast_changelist' %}"
-                     class="inline-block px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm">
-                    Manage in Django Admin
-                  </a>
-                </div>
-              </div>
+          <!-- Excel-like Forecast Table - WITH BORDERS -->
+          <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="forecast-table w-full text-sm">
+                <thead>
+                  <tr class="bg-slate-100">
+                    <th class="px-3 py-2 text-left border border-slate-200">DATE</th>
+                    <th class="px-3 py-2 text-left border border-slate-200">PART NUMBER</th>
+                    <th class="px-3 py-2 text-left border border-slate-200">PART NAME</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">UNIT PRICE</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">FEB</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">MAR</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">APR</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">MAY</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">JUN</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">JUL</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">AUG</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">SEP</th>
+                    <th class="px-3 py-2 text-right border border-slate-200">OCT</th>
+                    <th class="px-3 py-2 text-center border border-slate-200" colspan="2">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody id="forecastTableBody">
+                  {% for forecast in forecasts_list %}
+                    {% with monthly_data=forecast.monthly_forecasts %}
+                      {% if monthly_data %}
+                        {% for month_item in monthly_data %}
+                          <tr class="hover:bg-slate-50">
+                            <td class="px-3 py-2 border border-slate-200">{{ month_item.date|default:"January" }}</td>
+                            <td class="px-3 py-2 font-medium border border-slate-200">{{ forecast.part_number }}</td>
+                            <td class="px-3 py-2 border border-slate-200">{{ forecast.part_name }}</td>
+                            <td class="px-3 py-2 text-right border border-slate-200">{{ month_item.unit_price|default:"0.0210"|floatformat:4 }}</td>
+                            
+                            <!-- Month cells (FEB through OCT) -->
+                            <td class="px-3 py-2 text-right border border-slate-200">{% if month_item.feb_quantity %}{{ month_item.feb_quantity|floatformat:0 }}{% else %}-{% endif %}</td>
+                            <td class="px-3 py-2 text-right border border-slate-200">{% if month_item.mar_quantity %}{{ month_item.mar_quantity|floatformat:0 }}{% else %}-{% endif %}</td>
+                            <td class="px-3 py-2 text-right border border-slate-200">{% if month_item.apr_quantity %}{{ month_item.apr_quantity|floatformat:0 }}{% else %}-{% endif %}</td>
+                            <td class="px-3 py-2 text-right border border-slate-200">{% if month_item.may_quantity %}{{ month_item.may_quantity|floatformat:0 }}{% else %}-{% endif %}</td>
+                            <td class="px-3 py-2 text-right border border-slate-200">{% if month_item.jun_quantity %}{{ month_item.jun_quantity|floatformat:0 }}{% else %}-{% endif %}</td>
+                            <td class="px-3 py-2 text-right border border-slate-200">{% if month_item.jul_quantity %}{{ month_item.jul_quantity|floatformat:0 }}{% else %}-{% endif %}</td>
+                            <td class="px-3 py-2 text-right border border-slate-200">{% if month_item.aug_quantity %}{{ month_item.aug_quantity|floatformat:0 }}{% else %}-{% endif %}</td>
+                            <td class="px-3 py-2 text-right border border-slate-200">{% if month_item.sep_quantity %}{{ month_item.sep_quantity|floatformat:0 }}{% else %}-{% endif %}</td>
+                            <td class="px-3 py-2 text-right border border-slate-200">{% if month_item.oct_quantity %}{{ month_item.oct_quantity|floatformat:0 }}{% else %}-{% endif %}</td>
+                            
+                            <td class="px-3 py-2 text-center border border-slate-200">
+                              <button class="edit-forecast-row text-blue-600 hover:text-blue-800 mr-2" onclick="makeRowEditable(this)">
+                                Edit
+                              </button>
+                            </td>
+                            <td class="px-3 py-2 text-center border border-slate-200">
+                              <form method="post" class="inline delete-form" onsubmit="return confirm('Delete this forecast?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_forecast">
+                                <input type="hidden" name="forecast_id" value="{{ forecast.id }}">
+                                <input type="hidden" name="tab" value="forecasts">
+                                <button type="submit" class="text-rose-600 hover:text-rose-800">Delete</button>
+                              </form>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      {% else %}
+                        <tr class="hover:bg-slate-50">
+                          <td class="px-3 py-2 border border-slate-200">{{ forecast.created_at|date:"d-M"|default:"January" }}</td>
+                          <td class="px-3 py-2 font-medium border border-slate-200">{{ forecast.part_number }}</td>
+                          <td class="px-3 py-2 border border-slate-200">{{ forecast.part_name }}</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">{{ forecast.unit_price|default:"0.0210"|floatformat:4 }}</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">-</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">-</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">-</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">-</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">-</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">-</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">-</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">-</td>
+                          <td class="px-3 py-2 text-right border border-slate-200">-</td>
+                          <td class="px-3 py-2 text-center border border-slate-200">
+                            <button class="edit-forecast-row text-blue-600 hover:text-blue-800 mr-2" onclick="makeRowEditable(this)">
+                              Edit
+                            </button>
+                          </td>
+                          <td class="px-3 py-2 text-center border border-slate-200">
+                            <form method="post" class="inline delete-form" onsubmit="return confirm('Delete this forecast?');">
+                              {% csrf_token %}
+                              <input type="hidden" name="action" value="delete_forecast">
+                              <input type="hidden" name="forecast_id" value="{{ forecast.id }}">
+                              <input type="hidden" name="tab" value="forecasts">
+                              <button type="submit" class="text-rose-600 hover:text-rose-800">Delete</button>
+                            </form>
+                          </td>
+                        </tr>
+                      {% endif %}
+                    {% endwith %}
+                  {% empty %}
+                    <tr>
+                      <td colspan="15" class="px-3 py-8 text-center text-slate-500 border border-slate-200">
+                        No forecasts found. Click "Add New Forecast" to create one.
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+                
+                <!-- TOTAL QTY Row -->
+                <tfoot>
+                  <tr class="total-row">
+                    <td colspan="4" class="px-3 py-2 font-bold border border-slate-200">TOTAL QTY</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">32,170</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">33,380</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">32,900</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">31,700</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">30,600</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">21,800</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">33,380</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">33,240</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">33,700</td>
+                    <td class="px-3 py-2 border border-slate-200"></td>
+                    <td class="px-3 py-2 border border-slate-200"></td>
+                  </tr>
+                  <!-- TOTAL AMOUNT Row -->
+                  <tr class="amount-row">
+                    <td colspan="4" class="px-3 py-2 font-bold border border-slate-200">TOTAL AMOUNT</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">66,493</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">70,955</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">69,155</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">66,210</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">63,012</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">45,305</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">70,955</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">70,170</td>
+                    <td class="px-3 py-2 text-right font-medium border border-slate-200">71,217</td>
+                    <td class="px-3 py-2 border border-slate-200"></td>
+                    <td class="px-3 py-2 border border-slate-200"></td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
-
         </div>
 
+        <!-- Edit Forecast Modal -->
+        <div id="editForecastModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div class="fixed inset-0 bg-black/50" onclick="closeEditModal()"></div>
+          <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 relative z-10">
+            <h3 class="text-lg font-semibold text-slate-900 mb-4">Edit Forecast</h3>
+            <form id="editForecastForm" method="post" action="{% url 'app:admin_dashboard' %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="update_forecast">
+              <input type="hidden" name="forecast_id" id="edit_forecast_id">
+              <input type="hidden" name="tab" value="forecasts">
+              
+              <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="text-sm font-medium text-slate-700">Part Number</label>
+                    <input type="text" name="part_number" id="edit_part_number" required
+                           class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500">
+                  </div>
+                  <div>
+                    <label class="text-sm font-medium text-slate-700">Part Name</label>
+                    <input type="text" name="part_name" id="edit_part_name" required
+                           class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500">
+                  </div>
+                </div>
+
+                <div>
+                  <label class="text-sm font-medium text-slate-700">Customer</label>
+                  <select name="customer_id" id="edit_customer_id" class="mt-1 w-full ui-select">
+                    <option value="">— No Customer —</option>
+                    {% for c in all_customers %}
+                    <option value="{{ c.id }}">{{ c.customer_name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <div>
+                  <label class="text-sm font-medium text-slate-700">Date</label>
+                  <input type="text" name="date" id="edit_date" class="datepicker w-full px-3 py-2 rounded-xl border border-slate-300" required>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="text-sm font-medium text-slate-700">Unit Price</label>
+                    <input type="number" name="unit_price" id="edit_unit_price" step="0.0001" 
+                           class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300" required>
+                  </div>
+                  <div>
+                    <label class="text-sm font-medium text-slate-700">Quantity</label>
+                    <input type="number" name="quantity" id="edit_quantity" step="0.01" 
+                           class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300" required>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex justify-end gap-3 mt-6">
+                <button type="button" onclick="closeEditModal()" 
+                        class="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
         {% endif %}
 
       </div>
     </div>
-
   </div>
 
+  <!-- MODALS (existing) -->
   <div id="panel-backdrop" class="hidden fixed inset-0 bg-black/50 z-40"></div>
-
   <div id="detail-panel"
        class="fixed top-0 right-0 h-full w-full sm:w-[860px]
               bg-white text-slate-900 border-l border-slate-200 z-50
               translate-x-full transition-transform duration-200 flex flex-col">
-
     <div class="p-4 border-b border-slate-200 flex justify-between items-center">
       <div class="font-semibold text-blue-700">Customer Details</div>
       <button id="panel-close"
@@ -1088,14 +1310,12 @@
         Close
       </button>
     </div>
-
     <div id="panel-content" class="flex-1 overflow-y-auto p-4">
       <div class="text-slate-500 text-sm">Select a customer and click View</div>
     </div>
   </div>
 
   <div id="csv-backdrop" class="hidden fixed inset-0 bg-black/50 z-40"></div>
-
   <div id="csv-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
       <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
@@ -1108,20 +1328,17 @@
           Close
         </button>
       </div>
-
       <form method="post"
             action="{% url 'app:admin_csv_upload' %}"
             enctype="multipart/form-data"
             class="p-5 space-y-4">
         {% csrf_token %}
         <input type="hidden" name="next" value="{% url 'app:admin_dashboard' %}?tab=materials&mq={{ mq|urlencode }}">
-
         <div>
           <label class="text-sm font-medium text-slate-700">CSV File</label>
           <input type="file" name="csv_file" required
                  class="mt-2 w-full rounded-xl border border-slate-300 p-2 bg-white">
         </div>
-
         <div class="flex justify-end gap-2">
           <button type="button" id="csv-cancel"
                   class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50">
@@ -1137,7 +1354,6 @@
   </div>
 
   <div id="edit-backdrop" class="hidden fixed inset-0 bg-black/50 z-40"></div>
-
   <div id="edit-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
       <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
@@ -1150,33 +1366,28 @@
           Close
         </button>
       </div>
-
       <form method="post" class="p-5 space-y-4">
         {% csrf_token %}
         <input type="hidden" name="action" value="update_material">
         <input type="hidden" name="mat_id" id="edit-mat-id">
-
         <div>
           <label class="text-sm font-medium text-slate-700">Part Code</label>
           <input type="text" name="mat_partcode" id="edit-partcode" required
                  class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         </div>
-
         <div>
           <label class="text-sm font-medium text-slate-700">Part Name</label>
           <input type="text" name="mat_partname" id="edit-partname"
                  class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         </div>
-
         <div>
           <label class="text-sm font-medium text-slate-700">Maker</label>
           <input type="text" name="mat_maker" id="edit-maker"
                  class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         </div>
-
         <div>
           <label class="text-sm font-medium text-slate-700">Unit</label>
           <select name="unit" id="edit-unit"
@@ -1189,7 +1400,6 @@
             <option value="kg">kg</option>
           </select>
         </div>
-
         <div class="flex justify-end gap-2">
           <button type="button" id="edit-cancel"
                   class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50">
@@ -1204,564 +1414,645 @@
     </div>
   </div>
 
-  <div id="edit-forecast-backdrop" class="hidden fixed inset-0 bg-black/50 z-40"></div>
-
-  <div id="edit-forecast-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
-      <div class="px-5 py-4 border-b border-slate-200 flex justify-between items-center">
-        <div>
-          <div class="font-semibold text-slate-900">Edit Forecast</div>
-          <div class="text-xs text-slate-500">Update fields then save</div>
-        </div>
-        <button type="button" id="edit-forecast-close"
-                class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200">
-          Close
-        </button>
-      </div>
-
-      <form method="post" class="p-5 space-y-4 overflow-y-auto flex-1">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="update_forecast">
-        <input type="hidden" name="forecast_id" id="edit-forecast-id">
-
-        <div>
-          <label class="text-sm font-medium text-slate-700">Part Number</label>
-          <input type="text" name="part_number" id="edit-forecast-part-number" required
-                 class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
-                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-slate-700">Part Name</label>
-          <input type="text" name="part_name" id="edit-forecast-part-name" required
-                 class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
-                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-slate-700">Customer</label>
-          <select name="customer_id" id="edit-forecast-customer"
-                  class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-            <option value="">— No customer —</option>
-            {% for c in all_customers %}
-            <option value="{{ c.id }}">{{ c.customer_name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-slate-700">Monthly Forecasts (JSON)</label>
-          <textarea name="monthly_forecasts" id="edit-forecast-monthly" rows="6"
-                    placeholder='[{"date": "Jan-2026", "unit_price": 0.13, "quantity": 1000}]'
-                    class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-mono text-sm
-                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-          <p class="mt-1 text-xs text-slate-500">Format: array of {date, unit_price, quantity}</p>
-        </div>
-
-        <div class="flex justify-end gap-2 pt-2">
-          <button type="button" id="edit-forecast-cancel"
-                  class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50">
-            Cancel
-          </button>
-          <button type="submit"
-                  class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white">
-            Save Changes
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <div id="previous-forecast-backdrop" class="hidden fixed inset-0 bg-black/50 z-40"></div>
-
-  <div id="previous-forecast-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
-      <div class="px-5 py-4 border-b border-slate-200 flex justify-between items-center">
-        <div>
-          <div class="font-semibold text-slate-900">Previous Forecast</div>
-          <div class="text-xs text-slate-500">Store previous forecast per part (JSON rows per month).</div>
-        </div>
-        <button type="button" id="previous-forecast-close"
-                class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200">
-          Close
-        </button>
-      </div>
-
-      <form method="post" class="p-5 space-y-4 overflow-y-auto flex-1">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="save_previous_forecast">
-
-        <div>
-          <label class="text-sm font-medium text-slate-700">Forecast / Part</label>
-          <select name="forecast_id" required
-                  class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-            <option value="">Select part number…</option>
-            {% for f in forecasts_list %}
-            <option value="{{ f.id }}">{{ f.part_number }} — {{ f.part_name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-slate-700">Previous Forecast (JSON)</label>
-          <textarea name="monthly_forecasts" id="previous-forecast-monthly" rows="6"
-                    placeholder='[{"date": "Jan-2025", "unit_price": 0.13, "quantity": 1000}]'
-                    class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-mono text-sm
-                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-          <p class="mt-1 text-xs text-slate-500">
-            Same format as main forecast: array of objects with <code>date</code>, <code>unit_price</code>, <code>quantity</code>.
-          </p>
-        </div>
-
-        <div class="flex justify-end gap-2 pt-2">
-          <button type="button" id="previous-forecast-cancel"
-                  class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50">
-            Cancel
-          </button>
-          <button type="submit"
-                  class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white">
-            Save Previous Forecast
-          </button>
-        </div>
-
-        <div class="border-t border-slate-200 pt-4 mt-2 space-y-3">
-          <div class="flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-slate-900">Previous Forecast Records</h3>
-            <span class="text-xs text-slate-500">Read-only view of data saved via API</span>
-          </div>
-
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs md:text-sm">
-              <thead class="bg-slate-50 text-slate-700">
-                <tr>
-                  <th class="px-3 py-2 text-left">Part Number</th>
-                  <th class="px-3 py-2 text-left">Part Name</th>
-                  <th class="px-3 py-2 text-left">Months</th>
-                  <th class="px-3 py-2 text-right">Unit Price</th>
-                  <th class="px-3 py-2 text-right">Quantity</th>
-                  <th class="px-3 py-2 text-right">Total Qty</th>
-                  <th class="px-3 py-2 text-right">Total Amt</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {% for p in previous_forecasts_list %}
-                <tr class="border-t border-slate-200">
-                  <td class="px-3 py-2 font-medium">{{ p.part_number }}</td>
-                  <td class="px-3 py-2">{{ p.part_name }}</td>
-                  <td class="px-3 py-2">{{ p.months }}</td>
-                  <td class="px-3 py-2 text-right">{{ p.unit_price|floatformat:4 }}</td>
-                  <td class="px-3 py-2 text-right">{{ p.quantity|floatformat:2 }}</td>
-                  <td class="px-3 py-2 text-right">{{ p.total_quantity|floatformat:2 }}</td>
-                  <td class="px-3 py-2 text-right">{{ p.total_amount|floatformat:2 }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                  <td colspan="7" class="px-3 py-6 text-center text-slate-500">
-                    No previous forecasts saved yet. Use this form or the API to add data.
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <div id="actual-delivered-backdrop" class="hidden fixed inset-0 bg-black/50 z-40"></div>
-
-  <div id="actual-delivered-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
-      <div class="px-5 py-4 border-b border-slate-200 flex justify-between items-center">
-        <div>
-          <div class="font-semibold text-slate-900">Actual Delivered</div>
-          <div class="text-xs text-slate-500">Store actual delivered quantities per month.</div>
-        </div>
-        <button type="button" id="actual-delivered-close"
-                class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200">
-          Close
-        </button>
-      </div>
-
-      <form method="post" class="p-5 space-y-4 overflow-y-auto flex-1">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="save_actual_delivered">
-
-        <div>
-          <label class="text-sm font-medium text-slate-700">Forecast / Part</label>
-          <select name="forecast_id" required
-                  class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-            <option value="">Select part number…</option>
-            {% for f in forecasts_list %}
-            <option value="{{ f.id }}">{{ f.part_number }} — {{ f.part_name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-slate-700">Actual Delivered (JSON)</label>
-          <textarea name="monthly_forecasts" id="actual-delivered-monthly" rows="6"
-                    placeholder='[{"date": "Jan-2025", "unit_price": 0.13, "quantity": 950}]'
-                    class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-mono text-sm
-                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-          <p class="mt-1 text-xs text-slate-500">
-            Same format as main forecast: array of objects with <code>date</code>, <code>unit_price</code>, <code>quantity</code>.
-          </p>
-        </div>
-
-        <div class="flex justify-end gap-2 pt-2">
-          <button type="button" id="actual-delivered-cancel"
-                  class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50">
-            Cancel
-          </button>
-          <button type="submit"
-                  class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white">
-            Save Actual Delivered
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", function() {
       const box = document.getElementById("flash-messages");
-      if (!box) return;
-
-      setTimeout(() => {
-        box.querySelectorAll(".flash-msg").forEach((el, idx) => {
-          setTimeout(() => {
-            el.classList.add("opacity-0");
-          }, idx * 120);
-        });
-
+      if (box) {
         setTimeout(() => {
-          box.remove();
-        }, 700);
-      }, 2000);
-    });
+          box.querySelectorAll(".flash-msg").forEach((el, idx) => {
+            setTimeout(() => {
+              el.classList.add("opacity-0");
+            }, idx * 120);
+          });
 
-    const partMaps = [
-      {% for c in customers %}
-        {{ c.part_code_map_json|safe }},
-      {% endfor %}
-    ];
+          setTimeout(() => {
+            box.remove();
+          }, 700);
+        }, 2000);
+      }
 
-    function updateRow(rowIdx, selectedPartCode, selectedTepId = null) {
-      const map = partMaps[rowIdx] || {};
-      const entry = map[selectedPartCode];
+      // ============================================================
+      // Customer Dropdown Functionality
+      // ============================================================
+      const dropdownBtn = document.getElementById('customerDropdownBtn');
+      const dropdownMenu = document.getElementById('customerDropdownMenu');
+      const dropdownArrow = document.getElementById('dropdownArrow');
+      
+      if (dropdownBtn && dropdownMenu) {
+        dropdownBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          dropdownMenu.classList.toggle('hidden');
+          if (dropdownArrow) {
+            dropdownArrow.style.transform = dropdownMenu.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+          }
+        });
+      }
+      
+      // Close dropdown when clicking outside
+      document.addEventListener('click', function(e) {
+        if (dropdownMenu && !dropdownMenu.classList.contains('hidden') && 
+            !e.target.closest('#customerDropdownContainer')) {
+          dropdownMenu.classList.add('hidden');
+          if (dropdownArrow) {
+            dropdownArrow.style.transform = 'rotate(0deg)';
+          }
+        }
+      });
+      
+      // Customer search functionality
+      const customerSearch = document.getElementById('customerSearch');
+      if (customerSearch) {
+        customerSearch.addEventListener('input', function() {
+          const searchTerm = this.value.toLowerCase();
+          const links = document.querySelectorAll('#customerDropdownMenu a');
+          links.forEach(link => {
+            const text = link.textContent.toLowerCase();
+            link.style.display = text.includes(searchTerm) ? 'block' : 'none';
+          });
+        });
+      }
 
-      const tepDropdown = document.getElementById("tep-dd-" + rowIdx);
-      const matCell = document.getElementById("mat-" + rowIdx);
-      const viewLink = document.getElementById("view-" + rowIdx);
+      // ============================================================
+      // Toggle Add Forecast Form
+      // ============================================================
+      const toggleBtn = document.getElementById('toggleAddForecastBtn');
+      const addForm = document.getElementById('addForecastForm');
+      const cancelBtn = document.getElementById('cancelAddForecast');
+      
+      if (toggleBtn && addForm) {
+        toggleBtn.addEventListener('click', function() {
+          addForm.classList.toggle('hidden');
+          if (!addForm.classList.contains('hidden')) {
+            initializeForm();
+          }
+        });
+      }
+      
+      if (cancelBtn && addForm) {
+        cancelBtn.addEventListener('click', function() {
+          addForm.classList.add('hidden');
+        });
+      }
 
-      if (!tepDropdown || !matCell || !viewLink) return;
+      // ============================================================
+      // Check Customer Button
+      // ============================================================
+      const checkCustomerBtn = document.getElementById('checkCustomerBtn');
+      const customerNameInput = document.getElementById('forecast_customer_name');
+      const customerStatus = document.getElementById('customerStatus');
 
-      if (!entry) {
+      if (checkCustomerBtn && customerNameInput) {
+        checkCustomerBtn.addEventListener('click', function() {
+          const customerName = customerNameInput.value.trim();
+          if (!customerName) {
+            customerStatus.textContent = 'Please enter a customer name';
+            customerStatus.className = 'text-xs mt-1 text-amber-600';
+            return;
+          }
+
+          // Check if customer exists in the all_customers list
+          const customers = [
+            {% for customer in all_customers %}
+              "{{ customer.customer_name|escapejs }}",
+            {% endfor %}
+          ];
+          
+          const exists = customers.some(c => c.toLowerCase() === customerName.toLowerCase());
+          
+          if (exists) {
+            customerStatus.textContent = '✓ Customer exists in database';
+            customerStatus.className = 'text-xs mt-1 text-green-600';
+          } else {
+            customerStatus.textContent = '⚠ New customer will be created';
+            customerStatus.className = 'text-xs mt-1 text-amber-600';
+          }
+        });
+      }
+
+      // ============================================================
+      // Parts Management
+      // ============================================================
+      let partCount = 0;
+      const partsList = document.getElementById('partsList');
+      const partTemplate = document.getElementById('partTemplate');
+      const addPartBtn = document.getElementById('addPartBtn');
+
+      function initializeForm() {
+        // Clear existing parts
+        partsList.innerHTML = '';
+        partCount = 0;
+        // Add first part
+        addNewPart();
+      }
+
+      function addNewPart() {
+        if (!partTemplate) return;
+        
+        const newPart = partTemplate.cloneNode(true);
+        newPart.classList.remove('hidden', 'part-template');
+        newPart.id = `part_${partCount}`;
+        
+        // Update input names with correct index
+        updatePartIndices(newPart, partCount);
+        
+        // Add event listeners for this part
+        const removeBtn = newPart.querySelector('.remove-part');
+        removeBtn.addEventListener('click', function() {
+          newPart.remove();
+        });
+
+        const addMonthBtn = newPart.querySelector('.add-month-to-part');
+        addMonthBtn.addEventListener('click', function() {
+          addMonthToPart(newPart, partCount);
+        });
+
+        // Add initial month
+        partsList.appendChild(newPart);
+        addMonthToPart(newPart, partCount);
+        
+        partCount++;
+      }
+
+      function updatePartIndices(partElement, index) {
+        const inputs = partElement.querySelectorAll('input, select');
+        inputs.forEach(input => {
+          if (input.name) {
+            input.name = input.name.replace(/\[\d+\]/g, `[${index}]`);
+          }
+        });
+
+        // Update month row templates
+        const monthRows = partElement.querySelectorAll('.month-row');
+        monthRows.forEach((row, monthIdx) => {
+          updateMonthIndices(row, index, monthIdx);
+        });
+      }
+
+      function addMonthToPart(partElement, partIndex) {
+        const monthRowsContainer = partElement.querySelector('.part-month-rows');
+        const monthTemplate = partElement.querySelector('.month-row-template .month-row');
+        
+        if (!monthTemplate) return;
+        
+        const newMonthRow = monthTemplate.cloneNode(true);
+        const monthCount = monthRowsContainer.children.length;
+        
+        // Update month input names
+        updateMonthIndices(newMonthRow, partIndex, monthCount);
+        
+        // Add remove functionality
+        const removeBtn = newMonthRow.querySelector('.remove-month');
+        removeBtn.addEventListener('click', function() {
+          newMonthRow.remove();
+        });
+        
+        monthRowsContainer.appendChild(newMonthRow);
+        
+        // Initialize datepicker on the new month row
+        if (typeof flatpickr !== 'undefined') {
+          flatpickr(newMonthRow.querySelector('.datepicker'), {
+            plugins: [
+              new monthSelectPlugin({
+                shorthand: true,
+                dateFormat: "Y-m",
+                altFormat: "F Y"
+              })
+            ]
+          });
+        }
+      }
+
+      function updateMonthIndices(monthRow, partIndex, monthIndex) {
+        const inputs = monthRow.querySelectorAll('input');
+        inputs.forEach(input => {
+          if (input.name) {
+            input.name = `parts[${partIndex}][monthly_forecasts][${monthIndex}][${input.name.split('][').pop()?.replace(']', '') || input.name.split('[').pop()?.replace(']', '')}]`;
+          }
+        });
+      }
+
+      if (addPartBtn) {
+        addPartBtn.addEventListener('click', addNewPart);
+      }
+
+      // ============================================================
+      // Initialize Datepickers
+      // ============================================================
+      if (typeof flatpickr !== 'undefined' && typeof monthSelectPlugin !== 'undefined') {
+        flatpickr(".datepicker", {
+          plugins: [
+            new monthSelectPlugin({
+              shorthand: true,
+              dateFormat: "Y-m",
+              altFormat: "F Y"
+            })
+          ]
+        });
+      }
+
+      // ============================================================
+      // Customer Records functionality (existing)
+      // ============================================================
+      const partMaps = [
+        {% for c in customers %}
+          {{ c.part_code_map_json|safe }},
+        {% endfor %}
+      ];
+
+      function updateRow(rowIdx, selectedPartCode, selectedTepId = null) {
+        const map = partMaps[rowIdx] || {};
+        const entry = map[selectedPartCode];
+
+        const tepDropdown = document.getElementById("tep-dd-" + rowIdx);
+        const matCell = document.getElementById("mat-" + rowIdx);
+        const viewLink = document.getElementById("view-" + rowIdx);
+
+        if (!tepDropdown || !matCell || !viewLink) return;
+
+        if (!entry) {
+          tepDropdown.innerHTML = "";
+          matCell.textContent = "0";
+          viewLink.classList.add("hidden");
+          return;
+        }
+
+        const teps = entry.teps || [];
         tepDropdown.innerHTML = "";
-        matCell.textContent = "0";
-        viewLink.classList.add("hidden");
-        return;
+
+        teps.forEach(t => {
+          const opt = document.createElement("option");
+          opt.value = t.tep_id;
+          opt.textContent = t.tep_code;
+          tepDropdown.appendChild(opt);
+        });
+
+        let chosen = teps[0] || null;
+        if (selectedTepId) {
+          const found = teps.find(t => String(t.tep_id) === String(selectedTepId));
+          if (found) chosen = found;
+        }
+
+        if (!chosen) {
+          matCell.textContent = "0";
+          viewLink.classList.add("hidden");
+          return;
+        }
+
+        tepDropdown.value = chosen.tep_id;
+        matCell.textContent = chosen.materials_count ?? 0;
+
+        viewLink.dataset.tepId = chosen.tep_id;
+        viewLink.dataset.partCode = selectedPartCode;
+        viewLink.classList.remove("hidden");
       }
 
-      const teps = entry.teps || [];
-      tepDropdown.innerHTML = "";
-
-      teps.forEach(t => {
-        const opt = document.createElement("option");
-        opt.value = t.tep_id;
-        opt.textContent = t.tep_code;
-        tepDropdown.appendChild(opt);
-      });
-
-      let chosen = teps[0] || null;
-      if (selectedTepId) {
-        const found = teps.find(t => String(t.tep_id) === String(selectedTepId));
-        if (found) chosen = found;
-      }
-
-      if (!chosen) {
-        matCell.textContent = "0";
-        viewLink.classList.add("hidden");
-        return;
-      }
-
-      tepDropdown.value = chosen.tep_id;
-      matCell.textContent = chosen.materials_count ?? 0;
-
-      viewLink.dataset.tepId = chosen.tep_id;
-      viewLink.dataset.partCode = selectedPartCode;
-      viewLink.classList.remove("hidden");
-    }
-
-    document.querySelectorAll(".part-code-dropdown").forEach((dd) => {
-      dd.addEventListener("change", function () {
-        const rowIdx = Number(this.dataset.row);
-        updateRow(rowIdx, this.value);
-      });
-    });
-
-    document.querySelectorAll(".tep-code-dropdown").forEach((dd) => {
-      dd.addEventListener("change", function () {
-        const rowIdx = Number(this.dataset.row);
-        const partDd = document.querySelector(`.part-code-dropdown[data-row="${rowIdx}"]`);
-        const selectedPartCode = partDd ? partDd.value : "";
-        updateRow(rowIdx, selectedPartCode, this.value);
-      });
-    });
-
-    const panel = document.getElementById("detail-panel");
-    const backdrop = document.getElementById("panel-backdrop");
-    const panelClose = document.getElementById("panel-close");
-    const panelContent = document.getElementById("panel-content");
-
-    function openPanel() {
-      panel.classList.remove("translate-x-full");
-      backdrop.classList.remove("hidden");
-    }
-
-    function closePanel() {
-      panel.classList.add("translate-x-full");
-      backdrop.classList.add("hidden");
-    }
-
-    if (panelClose) panelClose.addEventListener("click", closePanel);
-    if (backdrop) backdrop.addEventListener("click", closePanel);
-
-    async function loadPanel(tepId) {
-      panelContent.innerHTML = `<div class="text-slate-500 text-sm">Loading…</div>`;
-      const url = `/panel/dashboard/?tep_id=${encodeURIComponent(tepId)}`;
-
-      const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
-      panelContent.innerHTML = await res.text();
-    }
-
-    document.querySelectorAll(".view-link").forEach(btn => {
-      btn.addEventListener("click", e => {
-        e.preventDefault();
-        const tepId = btn.dataset.tepId;
-        if (!tepId) return;
-        openPanel();
-        loadPanel(tepId);
-      });
-    });
-
-    const openCSV = document.getElementById("open-csv-upload");
-    const csvModal = document.getElementById("csv-modal");
-    const csvBackdrop = document.getElementById("csv-backdrop");
-    const csvClose = document.getElementById("csv-close");
-    const csvCancel = document.getElementById("csv-cancel");
-
-    function openCSVModal() {
-      if (!csvModal || !csvBackdrop) return;
-      csvModal.classList.remove("hidden");
-      csvBackdrop.classList.remove("hidden");
-    }
-
-    function closeCSVModal() {
-      if (!csvModal || !csvBackdrop) return;
-      csvModal.classList.add("hidden");
-      csvBackdrop.classList.add("hidden");
-    }
-
-    if (openCSV) openCSV.addEventListener("click", openCSVModal);
-    if (csvClose) csvClose.addEventListener("click", closeCSVModal);
-    if (csvCancel) csvCancel.addEventListener("click", closeCSVModal);
-    if (csvBackdrop) csvBackdrop.addEventListener("click", closeCSVModal);
-
-    const editBackdrop = document.getElementById("edit-backdrop");
-    const editModal = document.getElementById("edit-modal");
-    const editClose = document.getElementById("edit-close");
-    const editCancel = document.getElementById("edit-cancel");
-
-    const editMatId = document.getElementById("edit-mat-id");
-    const editPartcode = document.getElementById("edit-partcode");
-    const editPartname = document.getElementById("edit-partname");
-    const editMaker = document.getElementById("edit-maker");
-    const editUnit = document.getElementById("edit-unit");
-
-    function openEditModal(data) {
-      if (!editModal || !editBackdrop) return;
-
-      editMatId.value = data.id || "";
-      editPartcode.value = data.partcode || "";
-      editPartname.value = data.partname || "";
-      editMaker.value = data.maker || "";
-      editUnit.value = (data.unit || "pc").toLowerCase();
-
-      editModal.classList.remove("hidden");
-      editBackdrop.classList.remove("hidden");
-    }
-    function closeEditModal() {
-      if (!editModal || !editBackdrop) return;
-      editModal.classList.add("hidden");
-      editBackdrop.classList.add("hidden");
-    }
-
-    if (editClose) editClose.addEventListener("click", closeEditModal);
-    if (editCancel) editCancel.addEventListener("click", closeEditModal);
-    if (editBackdrop) editBackdrop.addEventListener("click", closeEditModal);
-
-    document.querySelectorAll(".edit-material").forEach(btn => {
-      btn.addEventListener("click", () => {
-        openEditModal({
-          id: btn.dataset.id,
-          partcode: btn.dataset.partcode,
-          partname: btn.dataset.partname,
-          maker: btn.dataset.maker,
-          unit: btn.dataset.unit
+      document.querySelectorAll(".part-code-dropdown").forEach((dd) => {
+        dd.addEventListener("change", function () {
+          const rowIdx = Number(this.dataset.row);
+          updateRow(rowIdx, this.value);
         });
       });
-    });
 
-    const FORECASTS_MONTHLY = {{ forecasts_monthly_json|safe }};
-    const editForecastBackdrop = document.getElementById("edit-forecast-backdrop");
-    const editForecastModal = document.getElementById("edit-forecast-modal");
-    const editForecastClose = document.getElementById("edit-forecast-close");
-    const editForecastCancel = document.getElementById("edit-forecast-cancel");
-
-    function openEditForecastModal(data) {
-      if (!editForecastModal || !editForecastBackdrop) return;
-      document.getElementById("edit-forecast-id").value = data.id || "";
-      document.getElementById("edit-forecast-part-number").value = data.partNumber || "";
-      document.getElementById("edit-forecast-part-name").value = data.partName || "";
-      document.getElementById("edit-forecast-customer").value = data.customerId || "";
-      const monthly = FORECASTS_MONTHLY && FORECASTS_MONTHLY[String(data.id)] !== undefined
-        ? FORECASTS_MONTHLY[String(data.id)]
-        : [];
-      document.getElementById("edit-forecast-monthly").value = JSON.stringify(monthly, null, 2);
-      editForecastModal.classList.remove("hidden");
-      editForecastBackdrop.classList.remove("hidden");
-    }
-    function closeEditForecastModal() {
-      if (!editForecastModal || !editForecastBackdrop) return;
-      editForecastModal.classList.add("hidden");
-      editForecastBackdrop.classList.add("hidden");
-    }
-    if (editForecastClose) editForecastClose.addEventListener("click", closeEditForecastModal);
-    if (editForecastCancel) editForecastCancel.addEventListener("click", closeEditForecastModal);
-    if (editForecastBackdrop) editForecastBackdrop.addEventListener("click", closeEditForecastModal);
-
-    document.querySelectorAll(".edit-forecast").forEach(btn => {
-      btn.addEventListener("click", () => {
-        openEditForecastModal({
-          id: btn.dataset.id,
-          partNumber: btn.dataset.partNumber,
-          partName: btn.dataset.partName,
-          customerId: btn.dataset.customerId
+      document.querySelectorAll(".tep-code-dropdown").forEach((dd) => {
+        dd.addEventListener("change", function () {
+          const rowIdx = Number(this.dataset.row);
+          const partDd = document.querySelector(`.part-code-dropdown[data-row="${rowIdx}"]`);
+          const selectedPartCode = partDd ? partDd.value : "";
+          updateRow(rowIdx, selectedPartCode, this.value);
         });
       });
-    });
 
-    const MASTER_MAP = {{ master_map_json|safe }};
+      const panel = document.getElementById("detail-panel");
+      const backdrop = document.getElementById("panel-backdrop");
+      const panelClose = document.getElementById("panel-close");
+      const panelContent = document.getElementById("panel-content");
 
-    const mpCode = document.getElementById("mat-partcode-input");
-    const mpName = document.getElementById("mat-partname");
-    const mpMaker = document.getElementById("mat-maker");
-    const mpUnit = document.getElementById("mat-unit");
-    const mpHint = document.getElementById("mat-master-hint");
-
-    const dimQty = document.getElementById("dim-qty");
-    const lossPct = document.getElementById("loss-percent");
-    const totalField = document.getElementById("total-field");
-
-    function recalcTotal() {
-      const d = parseFloat(dimQty?.value || "");
-      const l = parseFloat(lossPct?.value || "10");
-
-      if (isNaN(d)) {
-        if (totalField) totalField.value = "";
-        return;
-      }
-      const loss = isNaN(l) ? 10 : l;
-      const total = d * (1 + (loss / 100));
-      if (totalField) totalField.value = total.toFixed(4);
-    }
-
-    function fillFromMaster(code) {
-      const key = (code || "").trim();
-      const hit = MASTER_MAP[key];
-
-      if (!hit) {
-        if (mpName) mpName.value = "";
-        if (mpMaker) mpMaker.value = "";
-        if (mpUnit) mpUnit.value = "";
-        if (mpHint) mpHint.textContent = "Not found in master list.";
-        return;
+      function openPanel() {
+        panel.classList.remove("translate-x-full");
+        backdrop.classList.remove("hidden");
       }
 
-      if (mpName) mpName.value = hit.mat_partname || "";
-      if (mpMaker) mpMaker.value = hit.mat_maker || "";
-      if (mpUnit) mpUnit.value = hit.unit || "";
+      function closePanel() {
+        panel.classList.add("translate-x-full");
+        backdrop.classList.add("hidden");
+      }
 
-      if (mpHint) mpHint.textContent = "Found in master list ✅";
-    }
+      if (panelClose) panelClose.addEventListener("click", closePanel);
+      if (backdrop) backdrop.addEventListener("click", closePanel);
 
-    if (mpCode) {
-      mpCode.addEventListener("input", () => {
-        fillFromMaster(mpCode.value);
+      async function loadPanel(tepId) {
+        panelContent.innerHTML = `<div class="text-slate-500 text-sm">Loading…</div>`;
+        const url = `/panel/dashboard/?tep_id=${encodeURIComponent(tepId)}`;
+
+        const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+        panelContent.innerHTML = await res.text();
+      }
+
+      document.querySelectorAll(".view-link").forEach(btn => {
+        btn.addEventListener("click", e => {
+          e.preventDefault();
+          const tepId = btn.dataset.tepId;
+          if (!tepId) return;
+          openPanel();
+          loadPanel(tepId);
+        });
       });
-      mpCode.addEventListener("change", () => {
-        fillFromMaster(mpCode.value);
+
+      const openCSV = document.getElementById("open-csv-upload");
+      const csvModal = document.getElementById("csv-modal");
+      const csvBackdrop = document.getElementById("csv-backdrop");
+      const csvClose = document.getElementById("csv-close");
+      const csvCancel = document.getElementById("csv-cancel");
+
+      function openCSVModal() {
+        if (!csvModal || !csvBackdrop) return;
+        csvModal.classList.remove("hidden");
+        csvBackdrop.classList.remove("hidden");
+      }
+
+      function closeCSVModal() {
+        if (!csvModal || !csvBackdrop) return;
+        csvModal.classList.add("hidden");
+        csvBackdrop.classList.add("hidden");
+      }
+
+      if (openCSV) openCSV.addEventListener("click", openCSVModal);
+      if (csvClose) csvClose.addEventListener("click", closeCSVModal);
+      if (csvCancel) csvCancel.addEventListener("click", closeCSVModal);
+      if (csvBackdrop) csvBackdrop.addEventListener("click", closeCSVModal);
+
+      const editBackdrop = document.getElementById("edit-backdrop");
+      const editModal = document.getElementById("edit-modal");
+      const editClose = document.getElementById("edit-close");
+      const editCancel = document.getElementById("edit-cancel");
+
+      const editMatId = document.getElementById("edit-mat-id");
+      const editPartcode = document.getElementById("edit-partcode");
+      const editPartname = document.getElementById("edit-partname");
+      const editMaker = document.getElementById("edit-maker");
+      const editUnit = document.getElementById("edit-unit");
+
+      function openEditModal(data) {
+        if (!editModal || !editBackdrop) return;
+
+        editMatId.value = data.id || "";
+        editPartcode.value = data.partcode || "";
+        editPartname.value = data.partname || "";
+        editMaker.value = data.maker || "";
+        editUnit.value = (data.unit || "pc").toLowerCase();
+
+        editModal.classList.remove("hidden");
+        editBackdrop.classList.remove("hidden");
+      }
+      
+      function closeEditModal() {
+        if (!editModal || !editBackdrop) return;
+        editModal.classList.add("hidden");
+        editBackdrop.classList.add("hidden");
+      }
+
+      if (editClose) editClose.addEventListener("click", closeEditModal);
+      if (editCancel) editCancel.addEventListener("click", closeEditModal);
+      if (editBackdrop) editBackdrop.addEventListener("click", closeEditModal);
+
+      document.querySelectorAll(".edit-material").forEach(btn => {
+        btn.addEventListener("click", () => {
+          openEditModal({
+            id: btn.dataset.id,
+            partcode: btn.dataset.partcode,
+            partname: btn.dataset.partname,
+            maker: btn.dataset.maker,
+            unit: btn.dataset.unit
+          });
+        });
       });
-    }
 
-    if (dimQty) dimQty.addEventListener("input", recalcTotal);
-    if (lossPct) lossPct.addEventListener("input", recalcTotal);
+      window.MASTER_MAP = {{ master_map_json|safe }};
 
-    recalcTotal();
+      const mpCode = document.getElementById("mat-partcode-input");
+      const mpName = document.getElementById("mat-partname");
+      const mpMaker = document.getElementById("mat-maker");
+      const mpUnit = document.getElementById("mat-unit");
+      const mpHint = document.getElementById("mat-master-hint");
 
-    const prevBackdrop = document.getElementById("previous-forecast-backdrop");
-    const prevModal = document.getElementById("previous-forecast-modal");
-    const prevOpen = document.getElementById("open-previous-forecast");
-    const prevClose = document.getElementById("previous-forecast-close");
-    const prevCancel = document.getElementById("previous-forecast-cancel");
+      const dimQty = document.getElementById("dim-qty");
+      const lossPct = document.getElementById("loss-percent");
+      const totalField = document.getElementById("total-field");
 
-    function openPrevModal() {
-      if (!prevBackdrop || !prevModal) return;
-      prevBackdrop.classList.remove("hidden");
-      prevModal.classList.remove("hidden");
-    }
+      function recalcTotal() {
+        const d = parseFloat(dimQty?.value || "");
+        const l = parseFloat(lossPct?.value || "10");
 
-    function closePrevModal() {
-      if (!prevBackdrop || !prevModal) return;
-      prevBackdrop.classList.add("hidden");
-      prevModal.classList.add("hidden");
-    }
+        if (isNaN(d)) {
+          if (totalField) totalField.value = "";
+          return;
+        }
+        const loss = isNaN(l) ? 10 : l;
+        const total = d * (1 + (loss / 100));
+        if (totalField) totalField.value = total.toFixed(4);
+      }
 
-    if (prevOpen) prevOpen.addEventListener("click", openPrevModal);
-    if (prevClose) prevClose.addEventListener("click", closePrevModal);
-    if (prevCancel) prevCancel.addEventListener("click", closePrevModal);
-    if (prevBackdrop) prevBackdrop.addEventListener("click", closePrevModal);
+      function fillFromMaster(code) {
+        const key = (code || "").trim();
+        const hit = MASTER_MAP[key];
 
-    const actualBackdrop = document.getElementById("actual-delivered-backdrop");
-    const actualModal = document.getElementById("actual-delivered-modal");
-    const actualOpen = document.getElementById("open-actual-delivered");
-    const actualClose = document.getElementById("actual-delivered-close");
-    const actualCancel = document.getElementById("actual-delivered-cancel");
+        if (!hit) {
+          if (mpName) mpName.value = "";
+          if (mpMaker) mpMaker.value = "";
+          if (mpUnit) mpUnit.value = "";
+          if (mpHint) mpHint.textContent = "Not found in master list.";
+          return;
+        }
 
-    function openActualModal() {
-      if (!actualBackdrop || !actualModal) return;
-      actualBackdrop.classList.remove("hidden");
-      actualModal.classList.remove("hidden");
-    }
+        if (mpName) mpName.value = hit.mat_partname || "";
+        if (mpMaker) mpMaker.value = hit.mat_maker || "";
+        if (mpUnit) mpUnit.value = hit.unit || "";
 
-    function closeActualModal() {
-      if (!actualBackdrop || !actualModal) return;
-      actualBackdrop.classList.add("hidden");
-      actualModal.classList.add("hidden");
-    }
+        if (mpHint) mpHint.textContent = "Found in master list ✅";
+      }
 
-    if (actualOpen) actualOpen.addEventListener("click", openActualModal);
-    if (actualClose) actualClose.addEventListener("click", closeActualModal);
-    if (actualCancel) actualCancel.addEventListener("click", closeActualModal);
-    if (actualBackdrop) actualBackdrop.addEventListener("click", closeActualModal);
+      if (mpCode) {
+        mpCode.addEventListener("input", () => {
+          fillFromMaster(mpCode.value);
+        });
+        mpCode.addEventListener("change", () => {
+          fillFromMaster(mpCode.value);
+        });
+      }
+
+      if (dimQty) dimQty.addEventListener("input", recalcTotal);
+      if (lossPct) lossPct.addEventListener("input", recalcTotal);
+
+      recalcTotal();
+
+      // ============================================================
+      // Inline Row Editing Functions
+      // ============================================================
+      window.makeRowEditable = function(button) {
+        const row = button.closest('tr');
+        if (!row) return;
+        
+        const cells = {
+          date: row.cells[0],
+          partNumber: row.cells[1],
+          partName: row.cells[2],
+          unitPrice: row.cells[3],
+          months: [row.cells[4], row.cells[5], row.cells[6], row.cells[7], row.cells[8], row.cells[9], row.cells[10], row.cells[11], row.cells[12]]
+        };
+        
+        // Store original values
+        const originalValues = {
+          date: cells.date ? cells.date.textContent.trim() : '',
+          partNumber: cells.partNumber ? cells.partNumber.textContent.trim() : '',
+          partName: cells.partName ? cells.partName.textContent.trim() : '',
+          unitPrice: cells.unitPrice ? cells.unitPrice.textContent.trim() : '',
+          months: cells.months.map(cell => cell.textContent.trim())
+        };
+        
+        // Replace with input fields
+        cells.date.innerHTML = `<input type="text" class="edit-datepicker w-full px-2 py-1 border rounded" value="${originalValues.date}" required>`;
+        cells.partNumber.innerHTML = `<input type="text" class="w-full px-2 py-1 border rounded" value="${originalValues.partNumber}" required>`;
+        cells.partName.innerHTML = `<input type="text" class="w-full px-2 py-1 border rounded" value="${originalValues.partName}" required>`;
+        cells.unitPrice.innerHTML = `<input type="number" step="0.0001" class="w-full px-2 py-1 border rounded text-right" value="${originalValues.unitPrice.replace(/[^0-9.-]/g, '')}" required>`;
+        
+        cells.months.forEach((cell, index) => {
+          const value = originalValues.months[index] === '-' ? '' : originalValues.months[index].replace(/[^0-9.-]/g, '');
+          cell.innerHTML = `<input type="number" step="0.01" class="w-full px-2 py-1 border rounded text-right" value="${value}" placeholder="-">`;
+        });
+        
+        // Change Edit button to Save
+        button.textContent = 'Save';
+        button.onclick = function() { saveRow(this, originalValues); };
+        
+        // Reinitialize datepickers for edit mode
+        if (typeof flatpickr !== 'undefined' && typeof monthSelectPlugin !== 'undefined') {
+          flatpickr(".edit-datepicker", {
+            plugins: [
+              new monthSelectPlugin({
+                shorthand: true,
+                dateFormat: "Y-m",
+                altFormat: "F Y"
+              })
+            ]
+          });
+        }
+      };
+
+      window.saveRow = function(button, originalValues) {
+        const row = button.closest('tr');
+        if (!row) return;
+        
+        const inputs = row.querySelectorAll('input');
+        
+        // Validate inputs
+        let isValid = true;
+        inputs.forEach(input => {
+          if (input.hasAttribute('required') && !input.value) {
+            isValid = false;
+            input.classList.add('border-red-500');
+          } else {
+            input.classList.remove('border-red-500');
+          }
+        });
+        
+        if (!isValid) {
+          alert('Please fill in all required fields');
+          return;
+        }
+        
+        // Here you would typically send an AJAX request to save the data
+        // For now, we'll just update the display
+        const cells = {
+          date: row.cells[0],
+          partNumber: row.cells[1],
+          partName: row.cells[2],
+          unitPrice: row.cells[3],
+          months: [row.cells[4], row.cells[5], row.cells[6], row.cells[7], row.cells[8], row.cells[9], row.cells[10], row.cells[11], row.cells[12]]
+        };
+        
+        cells.date.textContent = inputs[0].value;
+        cells.partNumber.textContent = inputs[1].value;
+        cells.partName.textContent = inputs[2].value;
+        cells.unitPrice.textContent = parseFloat(inputs[3].value).toFixed(4);
+        
+        cells.months.forEach((cell, index) => {
+          const value = inputs[index + 4].value;
+          cell.textContent = value ? parseFloat(value).toFixed(0) : '-';
+        });
+        
+        // Change Save button back to Edit
+        button.textContent = 'Edit';
+        button.onclick = function() { makeRowEditable(this); };
+      };
+
+      // ============================================================
+      // Edit Modal Functions
+      // ============================================================
+      window.openEditModal = function(forecastId, partNumber, partName, customerId, date, unitPrice, quantity) {
+        const modal = document.getElementById('editForecastModal');
+        if (!modal) return;
+        
+        document.getElementById('edit_forecast_id').value = forecastId || '';
+        document.getElementById('edit_part_number').value = partNumber || '';
+        document.getElementById('edit_part_name').value = partName || '';
+        document.getElementById('edit_customer_id').value = customerId || '';
+        document.getElementById('edit_date').value = date || '';
+        document.getElementById('edit_unit_price').value = unitPrice || '';
+        document.getElementById('edit_quantity').value = quantity || '';
+        
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      };
+
+      window.closeEditModal = function() {
+        const modal = document.getElementById('editForecastModal');
+        if (modal) {
+          modal.classList.add('hidden');
+          document.body.style.overflow = '';
+        }
+      };
+
+      // Attach click handlers to edit buttons
+      document.querySelectorAll('.edit-forecast').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          openEditModal(
+            this.dataset.id,
+            this.dataset.partNumber,
+            this.dataset.partName,
+            this.dataset.customerId,
+            'January',
+            '0.0210',
+            '1000'
+          );
+        });
+      });
+
+      // Close modal when clicking outside
+      const modalBackdrop = document.querySelector('#editForecastModal > div:first-child');
+      if (modalBackdrop) {
+        modalBackdrop.addEventListener('click', closeEditModal);
+      }
+
+      // Prevent modal from closing when clicking inside the modal content
+      const modalContent = document.querySelector('#editForecastModal > div:last-child');
+      if (modalContent) {
+        modalContent.addEventListener('click', function(e) {
+          e.stopPropagation();
+        });
+      }
+
+      // Prevent delete forms from being affected by edit buttons
+      document.querySelectorAll('.delete-form').forEach(form => {
+        form.addEventListener('click', function(e) {
+          e.stopPropagation();
+        });
+      });
+
+    }); // End DOMContentLoaded
   </script>
 
+  <!-- Include monthSelectPlugin for flatpickr -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
 </body>
 </html>
