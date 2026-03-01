@@ -57,9 +57,18 @@
           </form>
         </div>
         
-        <a href="#" id="open-forecast-form" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white whitespace-nowrap">
-          + Add Forecast
-        </a>
+        <div class="flex flex-wrap gap-2 items-center justify-end">
+          <button type="button"
+                  id="open-forecast-csv"
+                  class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white whitespace-nowrap">
+            CSV Upload
+          </button>
+          <a href="#"
+             id="open-forecast-form"
+             class="h-10 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white whitespace-nowrap flex items-center justify-center">
+            + Add Forecast
+          </a>
+        </div>
       </div>
     </div>
     <div>
@@ -226,18 +235,18 @@
           <!-- Row 1: Main headers with PREVIOUS FORECAST and FORECAST side by side -->
           <tr>
             <!-- Fixed left columns (no colspan) -->
-            <th class="fs-col-header sticky-left" style="min-width:70px; padding: 8px 6px;">DATE</th>
-            <th class="fs-col-header sticky-left" style="min-width:130px; left:70px; padding: 8px 6px;">PART NUMBER</th>
+            <th class="fs-col-header sticky-left" style="min-width:140px; padding: 8px 6px;">CUSTOMER</th>
+            <th class="fs-col-header sticky-left" style="min-width:130px; left:140px; padding: 8px 6px;">PART NUMBER</th>
             <th class="fs-col-header" style="min-width:140px; padding: 8px 6px;">PART NAME</th>
             <th class="fs-col-header" style="min-width:70px; padding: 8px 6px;">UNIT PRICE</th>
 
             <!-- PREVIOUS FORECAST header -->
-            <th class="fs-section-prev section-border-left" colspan="6" style="padding: 8px 4px;">
+            <th class="fs-section-prev section-border-left" colspan="{{ fs_prev_months|length }}" style="padding: 8px 4px;">
               PREVIOUS FORECAST ({{ fs_prev_year|default:"Previous Year" }})
             </th>
 
             <!-- FORECAST header -->
-            <th class="fs-section-fore section-border-left" colspan="6" style="padding: 8px 4px;">
+            <th class="fs-section-fore section-border-left" colspan="{{ fs_fore_months|length }}" style="padding: 8px 4px;">
               FORECAST ({{ fs_fore_year|default:"Current Year" }})
             </th>
           </tr>
@@ -250,53 +259,53 @@
             <th class="fs-col-header" style="padding: 6px 4px;"></th>
             <th class="fs-col-header" style="padding: 6px 4px;"></th>
 
-            <!-- Previous Forecast Months -->
-            <th class="fs-col-header prev-month section-border-left" style="padding: 6px 4px; min-width:45px;">JAN</th>
-            <th class="fs-col-header prev-month" style="padding: 6px 4px; min-width:45px;">FEB</th>
-            <th class="fs-col-header prev-month" style="padding: 6px 4px; min-width:45px;">MAR</th>
-            <th class="fs-col-header prev-month" style="padding: 6px 4px; min-width:45px;">APR</th>
-            <th class="fs-col-header prev-month" style="padding: 6px 4px; min-width:45px;">MAY</th>
-            <th class="fs-col-header prev-month" style="padding: 6px 4px; min-width:45px;">JUN</th>
+            <!-- Previous Forecast Months (JAN–DEC) -->
+            {% for month in fs_prev_months %}
+              <th
+                class="fs-col-header prev-month {% if forloop.first %}section-border-left{% endif %}"
+                style="padding: 6px 4px; min-width:45px;"
+              >
+                {{ month }}
+              </th>
+            {% endfor %}
 
-            <!-- Forecast Months -->
-            <th class="fs-col-header fore-month section-border-left" style="padding: 6px 4px; min-width:45px;">JUL</th>
-            <th class="fs-col-header fore-month" style="padding: 6px 4px; min-width:45px;">AUG</th>
-            <th class="fs-col-header fore-month" style="padding: 6px 4px; min-width:45px;">SEP</th>
-            <th class="fs-col-header fore-month" style="padding: 6px 4px; min-width:45px;">OCT</th>
-            <th class="fs-col-header fore-month" style="padding: 6px 4px; min-width:45px;">NOV</th>
-            <th class="fs-col-header fore-month" style="padding: 6px 4px; min-width:45px;">DEC</th>
+            <!-- Forecast Months (JAN–DEC) -->
+            {% for month in fs_fore_months %}
+              <th
+                class="fs-col-header fore-month {% if forloop.first %}section-border-left{% endif %}"
+                style="padding: 6px 4px; min-width:45px;"
+              >
+                {{ month }}
+              </th>
+            {% endfor %}
           </tr>
         </thead>
 
         <tbody>
           {% for row in fs_rows %}
           <tr class="data-row">
-            <td class="sticky-left" style="left:0; padding: 8px 6px; text-align: center;">{{ row.date }}</td>
-            <td class="sticky-left font-mono" style="left:70px; padding: 8px 6px; text-align: left;">{{ row.part_number }}</td>
+            <td class="sticky-left" style="left:0; padding: 8px 6px; text-align: left;">{{ row.customer }}</td>
+            <td class="sticky-left font-mono" style="left:140px; padding: 8px 6px; text-align: left;">{{ row.part_number }}</td>
             <td style="padding: 8px 6px; text-align: left;">{{ row.part_name }}</td>
             <td style="padding: 8px 6px; text-align: right;">{{ row.unit_price|floatformat:4 }}</td>
 
-            <!-- Previous Forecast Months (JAN-JUN) -->
-            {% with months="JAN,FEB,MAR,APR,MAY,JUN"|split:"," %}
-              {% for month in months %}
-                <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
-                  {% with val=row.prev|get_item:month %}
-                    {% if val %}{{ val|floatformat:0|intcomma }}{% else %}-{% endif %}
-                  {% endwith %}
-                </td>
-              {% endfor %}
-            {% endwith %}
+            <!-- Previous Forecast Months (JAN–DEC) -->
+            {% for month in fs_prev_months %}
+              <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
+                {% with val=row.prev|get_item:month %}
+                  {% if val %}{{ val|floatformat:0|intcomma }}{% else %}-{% endif %}
+                {% endwith %}
+              </td>
+            {% endfor %}
 
-            <!-- Forecast Months (JUL-DEC) -->
-            {% with months="JUL,AUG,SEP,OCT,NOV,DEC"|split:"," %}
-              {% for month in months %}
-                <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
-                  {% with val=row.fore|get_item:month %}
-                    {% if val %}{{ val|floatformat:0|intcomma }}{% else %}0{% endif %}
-                  {% endwith %}
-                </td>
-              {% endfor %}
-            {% endwith %}
+            <!-- Forecast Months (JAN–DEC) -->
+            {% for month in fs_fore_months %}
+              <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
+                {% with val=row.fore|get_item:month %}
+                  {% if val %}{{ val|floatformat:0|intcomma }}{% else %}0{% endif %}
+                {% endwith %}
+              </td>
+            {% endfor %}
           </tr>
           {% empty %}
           <tr>
@@ -310,53 +319,45 @@
           {% if fs_rows %}
           <tr class="total-row">
             <td class="sticky-left" style="left:0;"></td>
-            <td class="sticky-left" style="left:70px;"></td>
+            <td class="sticky-left" style="left:140px;"></td>
             <td class="text-left font-bold text-slate-700" style="padding: 8px 6px;">TOTAL QTY</td>
             <td></td>
 
             <!-- Previous Forecast Totals -->
-            {% with months="JAN,FEB,MAR,APR,MAY,JUN"|split:"," %}
-              {% for month in months %}
-                <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
-                  {{ fs_total_prev_qty|get_item:month|default:"—"|intcomma }}
-                </td>
-              {% endfor %}
-            {% endwith %}
+            {% for month in fs_prev_months %}
+              <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
+                {{ fs_total_prev_qty|get_item:month|default:"—"|intcomma }}
+              </td>
+            {% endfor %}
 
             <!-- Forecast Totals -->
-            {% with months="JUL,AUG,SEP,OCT,NOV,DEC"|split:"," %}
-              {% for month in months %}
-                <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
-                  {{ fs_total_fore_qty|get_item:month|default:"—"|intcomma }}
-                </td>
-              {% endfor %}
-            {% endwith %}
+            {% for month in fs_fore_months %}
+              <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
+                {{ fs_total_fore_qty|get_item:month|default:"—"|intcomma }}
+              </td>
+            {% endfor %}
           </tr>
 
           <!-- TOTAL AMOUNT row -->
           <tr class="total-amount-row">
             <td class="sticky-left" style="left:0;"></td>
-            <td class="sticky-left" style="left:70px;"></td>
+            <td class="sticky-left" style="left:140px;"></td>
             <td class="text-left font-bold text-slate-700" style="padding: 8px 6px;">TOTAL AMOUNT</td>
             <td></td>
 
             <!-- Previous Forecast Amounts -->
-            {% with months="JAN,FEB,MAR,APR,MAY,JUN"|split:"," %}
-              {% for month in months %}
-                <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
-                  {{ fs_total_prev_amt|get_item:month|default:"—"|floatformat:0|intcomma }}
-                </td>
-              {% endfor %}
-            {% endwith %}
+            {% for month in fs_prev_months %}
+              <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
+                {{ fs_total_prev_amt|get_item:month|default:"—"|floatformat:0|intcomma }}
+              </td>
+            {% endfor %}
 
             <!-- Forecast Amounts -->
-            {% with months="JUL,AUG,SEP,OCT,NOV,DEC"|split:"," %}
-              {% for month in months %}
-                <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
-                  {{ fs_total_fore_amt|get_item:month|default:"—"|floatformat:0|intcomma }}
-                </td>
-              {% endfor %}
-            {% endwith %}
+            {% for month in fs_fore_months %}
+              <td class="{% if forloop.first %}section-border-left{% endif %}" style="padding: 8px 4px; text-align: center;">
+                {{ fs_total_fore_amt|get_item:month|default:"—"|floatformat:0|intcomma }}
+              </td>
+            {% endfor %}
           </tr>
           {% endif %}
         </tbody>
@@ -680,3 +681,4 @@
 
 </body>
 </html>
+
