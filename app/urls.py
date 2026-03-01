@@ -19,6 +19,7 @@ urlpatterns = [
     path("panel/dashboard/", views.admin_dashboard, name="admin_dashboard"),
     path("panel/users/", views.admin_users, name="admin_users"),
     path("panel/csv-upload/", views.admin_csv_upload, name="admin_csv_upload"),
+    path("panel/forecast-csv-upload/", views.admin_forecast_csv_upload, name="admin_forecast_csv_upload"),
     path("panel/users/<int:user_id>/toggle/", views.toggle_user_active, name="toggle_user_active"),
     #path("panel/customers/<int:tep_id>/panel/", views.admin_customer_detail_partial, name="admin_customer_detail_panel"),
 
