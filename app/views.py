@@ -238,19 +238,25 @@ def build_customer_table(q: str):
     return customers
 
 
-def _build_forecast_summary(fsq="", fsq_customer=""):
+def _build_forecast_summary(fsq: str = "", fsq_customer: str = ""):
     """
     Build data for the Forecast Summary tab.
-    Returns a dict with: fs_rows, fs_prev_months, fs_fore_months,
-    fs_total_prev_qty, fs_total_fore_qty, fs_total_prev_amt, fs_total_fore_amt,
-    fs_customers.
 
-    Convention used:
-      - A monthly_forecast entry whose date string starts with a year BEFORE
-        the current year is treated as PREVIOUS FORECAST.
-      - Otherwise it is treated as FORECAST (current/future).
+    This version groups rows by (customer, part_number) so that
+    previous-year quantities and current-year quantities for the same
+    part appear on a single row. It also exposes all 12 months
+    (JAN–DEC) for both PREVIOUS FORECAST and FORECAST sections.
 
-    The date field in monthly_forecasts is stored as "Month-YYYY" (e.g. "January-2025").
+    Returned keys:
+      - fs_rows: list of dicts with
+          { customer, part_number, part_name, unit_price, prev, fore }
+        where prev/fore are { "JAN": qty, ... }.
+      - fs_prev_months, fs_fore_months: ordered month labels
+        (always ["JAN", ..., "DEC"]).
+      - fs_total_prev_qty / fs_total_prev_amt: totals per month.
+      - fs_total_fore_qty / fs_total_fore_amt: totals per month.
+      - fs_prev_year, fs_fore_year: year labels for headers.
+      - fs_customers: distinct customer names for filter dropdown.
     """
     from datetime import date
     import calendar
@@ -267,9 +273,14 @@ def _build_forecast_summary(fsq="", fsq_customer=""):
 
     today = date.today()
     current_year = today.year
+    prev_year = current_year - 1
 
     # ── fetch forecasts ──────────────────────────────────────────────────────
-    qs = Forecast.objects.select_related("customer").order_by("customer__customer_name", "part_number")
+    qs = (
+        Forecast.objects
+        .select_related("customer")
+        .order_by("customer__customer_name", "part_number")
+    )
 
     if fsq:
         qs = qs.filter(
@@ -279,7 +290,7 @@ def _build_forecast_summary(fsq="", fsq_customer=""):
         qs = qs.filter(customer__customer_name=fsq_customer)
 
     # ── collect all month keys so we can build ordered column lists ──────────
-    prev_month_keys = set()   # (year, month_int)
+    prev_month_keys = set()   # (year, month_int, label)
     fore_month_keys = set()
 
     def _parse_date_str(date_str):
@@ -301,29 +312,43 @@ def _build_forecast_summary(fsq="", fsq_customer=""):
         label = SHORT_MONTHS[month_int]
         return year, month_int, label
 
-    fs_rows = []
+    # ── aggregate by (customer, part_number) so prev/fore share one row ─────
+    rows_by_key = {}
 
     for forecast in qs:
         monthly = forecast.monthly_forecasts or []
 
-        # first entry drives the row "date" display
-        first_entry = monthly[0] if monthly else {}
-        first_date_str = first_entry.get("date", "") if isinstance(first_entry, dict) else ""
+        first_entry = next(
+            (m for m in monthly if isinstance(m, dict)),
+            {}
+        )
 
-        parsed_first = _parse_date_str(first_date_str)
-        row_date_display = ""
-        if parsed_first:
-            yr, mo, _ = parsed_first
-            row_date_display = f"{today.day}-{SHORT_MONTHS[mo]}"
-
-        # unit price from first entry (consistent across months for same part)
         try:
             unit_price = float(first_entry.get("unit_price", 0)) if isinstance(first_entry, dict) else 0.0
         except (TypeError, ValueError):
             unit_price = 0.0
 
-        prev_data = {}  # label → qty
-        fore_data = {}
+        customer_name = forecast.customer.customer_name if forecast.customer else "—"
+        key = (customer_name, forecast.part_number)
+
+        row = rows_by_key.get(key)
+        if not row:
+            row = {
+                "customer": customer_name,
+                "part_number": forecast.part_number,
+                "part_name": forecast.part_name,
+                "unit_price": unit_price,
+                "prev": {},
+                "fore": {},
+            }
+            rows_by_key[key] = row
+        else:
+            # keep latest non-zero unit price
+            if unit_price:
+                row["unit_price"] = unit_price
+
+        prev_data = row["prev"]
+        fore_data = row["fore"]
 
         for entry in monthly:
             if not isinstance(entry, dict):
@@ -345,19 +370,18 @@ def _build_forecast_summary(fsq="", fsq_customer=""):
                 fore_data[label] = fore_data.get(label, 0.0) + qty
                 fore_month_keys.add((yr, mo, label))
 
-        fs_rows.append({
-            "date":        row_date_display,
-            "part_number": forecast.part_number,
-            "part_name":   forecast.part_name,
-            "unit_price":  unit_price,
-            "customer":    forecast.customer.customer_name,
-            "prev":        prev_data,
-            "fore":        fore_data,
-        })
+    fs_rows = list(rows_by_key.values())
 
-    # ── build ordered month label lists ─────────────────────────────────────
-    fs_prev_months = [lbl for (_, _, lbl) in sorted(prev_month_keys)]
-    fs_fore_months = [lbl for (_, _, lbl) in sorted(fore_month_keys)]
+    # ── build ordered month label lists (always full JAN–DEC) ───────────────
+    all_month_labels = [SHORT_MONTHS[i] for i in range(1, 13)]
+
+    # We still evaluate used labels to preserve behaviour if needed later,
+    # but the context always exposes the full 12 months.
+    _ = [lbl for (_, _, lbl) in sorted(prev_month_keys)]
+    _ = [lbl for (_, _, lbl) in sorted(fore_month_keys)]
+
+    fs_prev_months = all_month_labels
+    fs_fore_months = all_month_labels
 
     # ── compute totals ───────────────────────────────────────────────────────
     fs_total_prev_qty = defaultdict(float)
@@ -383,14 +407,16 @@ def _build_forecast_summary(fsq="", fsq_customer=""):
     )
 
     return {
-        "fs_rows":           fs_rows,
-        "fs_prev_months":    fs_prev_months,
-        "fs_fore_months":    fs_fore_months,
-        "fs_total_prev_qty": dict(fs_total_prev_qty),
-        "fs_total_fore_qty": dict(fs_total_fore_qty),
-        "fs_total_prev_amt": dict(fs_total_prev_amt),
-        "fs_total_fore_amt": dict(fs_total_fore_amt),
-        "fs_customers":      fs_customers,
+        "fs_rows":            fs_rows,
+        "fs_prev_months":     fs_prev_months,
+        "fs_fore_months":     fs_fore_months,
+        "fs_total_prev_qty":  dict(fs_total_prev_qty),
+        "fs_total_fore_qty":  dict(fs_total_fore_qty),
+        "fs_total_prev_amt":  dict(fs_total_prev_amt),
+        "fs_total_fore_amt":  dict(fs_total_fore_amt),
+        "fs_prev_year":       prev_year,
+        "fs_fore_year":       current_year,
+        "fs_customers":       fs_customers,
     }
 
 
@@ -1242,6 +1268,161 @@ def admin_csv_upload(request):
 
 
 @login_required
+@user_passes_test(is_admin)
+def admin_forecast_csv_upload(request):
+    """
+    Upload a CSV file containing forecast data.
+
+    Expected columns (case-insensitive, flexible):
+      - customer_name / CUSTOMER
+      - part_number / Partcode / PART_NUMBER
+      - part_name / Partname / PART_NAME
+      - Either:
+          * date  (e.g. "January-2025" or "Jan-2025"), or
+          * month + year columns which will be combined as "Month-Year"
+      - unit_price
+      - quantity
+
+    Each row represents one monthly forecast entry. Rows with the same
+    (customer_name, part_number, part_name) are grouped into a single
+    Forecast record whose monthly_forecasts list contains all months
+    from the CSV.
+    """
+    default_next = reverse("app:admin_dashboard") + "?tab=forecast"
+    next_url = request.POST.get("next") or request.GET.get("next") or default_next
+
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        next_url = default_next
+
+    if request.method == "POST" and request.FILES.get("csv_file"):
+        f = request.FILES["csv_file"]
+        raw = f.read()
+
+        content = None
+        for enc in ("utf-8-sig", "utf-16", "cp1252", "latin-1"):
+            try:
+                content = raw.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if content is None:
+            messages.error(request, "Could not read file encoding. Save as CSV UTF-8 and upload again.")
+            return redirect(next_url)
+
+        csv_file = io.StringIO(content)
+        reader = csv.DictReader(csv_file)
+        reader.fieldnames = [h.strip().lstrip("\ufeff") for h in (reader.fieldnames or [])]
+
+        def sget(row, *keys, default=""):
+            for k in keys:
+                v = row.get(k)
+                if v is not None and str(v).strip() != "":
+                    return str(v).strip()
+            return default
+
+        def fnum(val, default=0.0):
+            try:
+                if val is None:
+                    return float(default)
+                s = str(val).strip()
+                if s == "":
+                    return float(default)
+                return float(s)
+            except Exception:
+                return float(default)
+
+        # Group monthly entries by (customer, part_number, part_name)
+        grouped = defaultdict(list)
+
+        for row in reader:
+            customer_name = sget(row, "customer_name", "Customer", "CUSTOMER")
+            part_number = sget(row, "part_number", "Partcode", "PART_NUMBER", "part_code")
+            part_name = sget(row, "part_name", "Partname", "PART_NAME")
+
+            date_str = sget(row, "date", "month_year", "MonthYear")
+            month = sget(row, "month", "Month")
+            year = sget(row, "year", "Year")
+
+            if not date_str:
+                if month and year:
+                    date_str = f"{month}-{year}"
+                elif month:
+                    # Fallback: assume current year if only month is given
+                    from datetime import date
+                    date_str = f"{month}-{date.today().year}"
+
+            unit_price = fnum(row.get("unit_price") or row.get("UnitPrice") or row.get("price"), 0.0)
+            quantity = fnum(row.get("quantity") or row.get("qty") or row.get("Quantity"), 0.0)
+
+            if not (customer_name and part_number and part_name and date_str):
+                continue
+
+            key = (customer_name, part_number, part_name)
+            grouped[key].append({
+                "date": date_str,
+                "unit_price": unit_price,
+                "quantity": quantity,
+            })
+
+        if not grouped:
+            messages.error(request, "No valid forecast rows found in CSV.")
+            return redirect(next_url)
+
+        created_count = 0
+        updated_count = 0
+
+        try:
+            with transaction.atomic():
+                for (cust_name, part_no, part_nm), monthly in grouped.items():
+                    customer, _ = Customer.objects.get_or_create(
+                        customer_name=cust_name,
+                        defaults={"parts": []}
+                    )
+
+                    forecast = Forecast.objects.filter(
+                        customer=customer,
+                        part_number=part_no
+                    ).first()
+
+                    if forecast:
+                        forecast.part_name = part_nm or forecast.part_name
+                        forecast.monthly_forecasts = monthly
+                        forecast.save()
+                        updated_count += 1
+                    else:
+                        Forecast.objects.create(
+                            customer=customer,
+                            part_number=part_no,
+                            part_name=part_nm,
+                            monthly_forecasts=monthly,
+                        )
+                        created_count += 1
+
+                    # Ensure the part exists in customer.parts
+                    parts = customer.parts or []
+                    exists = any(
+                        isinstance(p, dict) and str(p.get("Partcode", "")).strip() == part_no
+                        for p in parts
+                    )
+                    if not exists:
+                        parts.append({"Partcode": part_no, "Partname": part_nm})
+                        customer.parts = parts
+                        customer.save(update_fields=["parts"])
+
+            messages.success(
+                request,
+                f"Forecast CSV uploaded successfully | created={created_count}, updated={updated_count}"
+            )
+        except Exception as e:
+            messages.error(request, f"Forecast CSV upload failed: {e}")
+
+        return redirect(next_url)
+
+    return redirect(next_url)
+
+
+@login_required
 def customer_list(request):
     q = (request.GET.get("q") or "").strip()
     customers = build_customer_table(q)
@@ -1361,3 +1542,4 @@ def add_material_to_tep(request):
 def logout_view(request):
     logout(request)
     return redirect(reverse("app:login"))
+
